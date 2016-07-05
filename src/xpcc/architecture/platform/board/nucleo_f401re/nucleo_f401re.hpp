@@ -6,12 +6,12 @@
  * ------------------------------------------------------------------------ */
 
 //
-// NUCLEO-F411RE
-// Nucleo kit for STM32F411RE
+// NUCLEO-F401RE
+// Nucleo kit for STM32F401RE
 //
 
-#ifndef XPCC_STM32_NUCLEO_F411RE_HPP
-#define XPCC_STM32_NUCLEO_F411RE_HPP
+#ifndef XPCC_STM32_NUCLEO_F401RE_HPP
+#define XPCC_STM32_NUCLEO_F401RE_HPP
 
 #include <xpcc/architecture/platform.hpp>
 #include <xpcc/debug/logger.hpp>
@@ -23,7 +23,7 @@ using namespace xpcc::stm32;
 namespace Board
 {
 
-/// STM32F411RE running at 96MHz generated from the internal 16MHz crystal
+/// STM32F401RE running at 84MHz generated from the internal 16MHz crystal
 // Dummy clock for devices
 struct systemClock {
 	static constexpr uint32_t Frequency = 84 * MHz1;
@@ -37,7 +37,6 @@ struct systemClock {
 	static constexpr uint32_t Spi2   = Apb1;
 	static constexpr uint32_t Spi3   = Apb1;
 	static constexpr uint32_t Spi4   = Apb2;
-	static constexpr uint32_t Spi5   = Apb2;
 
 	static constexpr uint32_t Usart1 = Apb2;
 	static constexpr uint32_t Usart2 = Apb1;
@@ -54,6 +53,7 @@ struct systemClock {
 	static constexpr uint32_t Timer3  = Apb1Timer;
 	static constexpr uint32_t Timer4  = Apb1Timer;
 	static constexpr uint32_t Timer5  = Apb1Timer;
+	static constexpr uint32_t Timer8  = Apb2Timer;
 	static constexpr uint32_t Timer9  = Apb2Timer;
 	static constexpr uint32_t Timer10 = Apb2Timer;
 	static constexpr uint32_t Timer11 = Apb2Timer;
@@ -64,24 +64,24 @@ struct systemClock {
 		ClockControl::enableInternalClock();	// 16MHz
 		ClockControl::enablePll(
 			ClockControl::PllSource::InternalClock,
-			4,	// 16MHz / N=4 -> 4MHz
-		    84,	// 4MHz * M=96 -> 384MHz
-			4,	// 384MHz / P=4 -> 96MHz = F_cpu
-			8	// 384MHz / Q=8 -> 48MHz = F_usb
+		    16,	 //  16MHz / M=16  ->   1MHz
+		    336, //   1MHz * N=336 -> 336MHz
+		    4,	 // 336MHz / P=4   ->  84MHz = F_cpu
+		    7	 // 336MHz / Q=7   ->  48MHz = F_usb
 		);
-		// set flash latency for 96MHz
+		// set flash latency for 84MHz
 		ClockControl::setFlashLatency(Frequency);
 		// switch system clock to PLL output
 		ClockControl::enableSystemClock(ClockControl::SystemClockSource::Pll);
 		ClockControl::setAhbPrescaler(ClockControl::AhbPrescaler::Div1);
-		// APB1 has max. 50MHz
+		// APB1 has max. 42MHz
 		ClockControl::setApb1Prescaler(ClockControl::Apb1Prescaler::Div2);
 		ClockControl::setApb2Prescaler(ClockControl::Apb2Prescaler::Div1);
 		// update frequencies for busy-wait delay functions
 		xpcc::clock::fcpu     = Frequency;
 		xpcc::clock::fcpu_kHz = Frequency / 1000;
 		xpcc::clock::fcpu_MHz = Frequency / 1000000;
-		xpcc::clock::ns_per_loop = 31; // 3000 / 96 = 31.125 = ~31ns per delay loop
+		xpcc::clock::ns_per_loop = 36; // 3000 / 84 = 35.714 = ~36ns per delay loop
 
 		return true;
 	}
@@ -144,4 +144,4 @@ initialize()
 
 }
 
-#endif	// XPCC_STM32_NUCLEO_F103RB_HPP
+#endif	// XPCC_STM32_NUCLEO_F401RE_HPP
