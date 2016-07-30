@@ -48,6 +48,21 @@ xpcc::Nrf24Config<Nrf24Phy>::setMode(Mode mode)
 // --------------------------------------------------------------------------------------------------------------------
 
 template<typename Nrf24Phy>
+typename xpcc::Nrf24Config<Nrf24Phy>::Mode
+xpcc::Nrf24Config<Nrf24Phy>::getMode()
+{
+	uint8_t config = Nrf24Phy::readRegister(NrfRegister::CONFIG);
+
+	if(config & static_cast<uint8_t>(Config::PRIM_RX)) {
+		return Mode::Rx;
+	} else {
+		return Mode::Tx;
+	}
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+template<typename Nrf24Phy>
 void
 xpcc::Nrf24Config<Nrf24Phy>::setSpeed(Speed speed)
 {

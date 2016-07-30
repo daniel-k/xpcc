@@ -139,6 +139,9 @@ public:
 	static void
 	setMode(Mode mode);
 
+	static Mode
+	getMode();
+
 	static void
 	setSpeed(Speed speed);
 
