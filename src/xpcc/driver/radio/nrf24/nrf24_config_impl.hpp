@@ -181,3 +181,23 @@ xpcc::Nrf24Config<Nrf24Phy>::getPayloadPipe()
 
 	return static_cast<Pipe_t>((status & (uint8_t)Status::RX_P_NO) >> 1);
 }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+template<typename Nrf24Phy>
+bool
+xpcc::Nrf24Config<Nrf24Phy>::channelBusy()
+{
+	// if we're transmitting we consider the channel as busy
+	if(getMode() == Mode::Tx) {
+		return true;
+	}
+
+	// We're in RX mode, so we need to pull CE low for RPD to be latched. CE is
+	// assumed to be high during normal operation, so pulsing should be enough.
+	// See section 6.4, p. 25
+	Nrf24Phy::pulseCe();
+
+	uint8_t rpd = Nrf24Phy::readRegister(NrfRegister::RPD);
+	return static_cast<bool>(rpd);
+}

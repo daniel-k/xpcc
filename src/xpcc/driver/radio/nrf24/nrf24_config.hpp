@@ -193,6 +193,14 @@ public:
 	getRetryCount()
 	{ return (Nrf24Phy::readRegister(NrfRegister::OBSERVE_TX) & (uint8_t)ObserveTx::ARC_CNT); }
 
+	/**
+	 * Sample the detected power on the current channel
+	 *
+	 * @return if channel is busy or not
+	 */
+	static bool
+	channelBusy();
+
 };
 
 }   // namespace xpcc
