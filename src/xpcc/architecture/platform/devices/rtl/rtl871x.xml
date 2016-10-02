@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE rca SYSTEM "../devicefile.dtd">
+<rca version="1.0">
+  <device platform="rtl" family="871x" name="0" pin_id="af">
+    <naming-schema>{{ platform }}{{ name }}{{ pin_id }}</naming-schema>
+    <flash>1048576</flash>
+    <ram>458752</ram>
+    <core>cortex-m3</core>
+    <pin-count device-pin-id="af">48</pin-count>
+    <header>rtl8710.h</header>
+    <define>RTL871xAF</define>
+    <driver type="core" name="cortex">
+      <parameter name="vector_table_in_ram">true</parameter>
+      <memory access="rx"  start="0x00000000" name="image1" size="32"/>
+      <memory access="rx"  start="0x00009000" name="sysdata" size="4"/>
+      <memory access="rx"  start="0x0000a000" name="calibdata" size="4"/>
+      <memory access="rx"  start="0x0000b000" name="flash" size="980"/>
+      <memory access="rwx" start="0x10000000" name="sram1" size="448"/>
+      <memory access="rwx" start="0x1fff0000" name="tcm" size="64"/>
+      <vector position="0" name="SYSTEM_ON"/>
+      <vector position="1" name="WDG"/>
+      <vector position="2" name="TIMER0"/>
+      <vector position="3" name="TIMER1"/>
+      <vector position="4" name="I2C3"/>
+      <vector position="5" name="TIMER2_7"/>
+      <vector position="6" name="SPI0"/>
+      <vector position="7" name="GPIO"/>
+      <vector position="8" name="UART0"/>
+      <vector position="9" name="SPI_FLASH"/>
+      <vector position="10" name="USB_OTG"/>
+      <vector position="11" name="SDIO_HOST"/>
+      <vector position="12" name="SDIO_DEVICE"/>
+      <vector position="13" name="I2S0_PCM0"/>
+      <vector position="14" name="I2S1_PCM1"/>
+      <vector position="15" name="WL_DMA"/>
+      <vector position="16" name="WL_PROTOCOL"/>
+      <vector position="17" name="CRYPTO"/>
+      <vector position="18" name="GMAC"/>
+      <vector position="19" name="PERIPHERAL"/>
+      <vector position="20" name="GDMA0_CHANNEL0"/>
+      <vector position="21" name="GDMA0_CHANNEL1"/>
+      <vector position="22" name="GDMA0_CHANNEL2"/>
+      <vector position="23" name="GDMA0_CHANNEL3"/>
+      <vector position="24" name="GDMA0_CHANNEL4"/>
+      <vector position="25" name="GDMA0_CHANNEL5"/>
+      <vector position="26" name="GDMA1_CHANNEL0"/>
+      <vector position="27" name="GDMA1_CHANNEL1"/>
+      <vector position="28" name="GDMA1_CHANNEL2"/>
+      <vector position="29" name="GDMA1_CHANNEL3"/>
+      <vector position="30" name="GDMA1_CHANNEL4"/>
+      <vector position="31" name="GDMA1_CHANNEL5"/>
+      <vector position="64" name="I2C0"/>
+      <vector position="65" name="I2C1"/>
+      <vector position="66" name="I2C2"/>
+      <vector position="72" name="SPI1"/>
+      <vector position="73" name="SPI2"/>
+      <vector position="80" name="UART1"/>
+      <vector position="81" name="UART2"/>
+      <vector position="88" name="LOG_UART"/>
+      <vector position="89" name="ADC"/>
+      <vector position="91" name="DAC0"/>
+      <vector position="92" name="DAC1"/>
+      <vector position="93" name="LP_EXTENSION"/>
+      <vector position="95" name="PTA_TRX"/>
+      <vector position="96" name="RXI300"/>
+      <vector position="97" name="NFC"/>
+    </driver>
+    <driver type="clock" name="rtl871x"/>
+<!--
+    <driver type="timer" name="stm32" instances="0"/>
+    <driver type="uart" name="stm32" instances="0"/>
+-->
+    <driver type="gpio" name="rtl871x">
+      <gpio port="A" id="0"/>
+    </driver>
+  </device>
+</rca>

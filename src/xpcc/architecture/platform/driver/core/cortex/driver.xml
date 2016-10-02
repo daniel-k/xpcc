@@ -28,6 +28,10 @@
 
 		<!-- lpc -->
 		<template device-platform="lpc" out="linkerscript.ld">linkerscript/stm32_ram.ld.in</template>
+		<!-- rtl871x -->
+		<!-- <template device-platform="rtl" device-family="871x" out="linkerscript.ld">linkerscript/rtl871x.in</template> -->
+		<template device-platform="rtl" device-family="871x" out="linkerscript.ld">linkerscript/stm32_ram.ld.in</template>
+		
 		<!-- stm32f0, stm32f1, stm32f2 -->
 		<template device-family="f0|f1|f2" out="linkerscript.ld">linkerscript/stm32_ram.ld.in</template>
 		<!-- stm32f3 -->

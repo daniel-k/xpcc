@@ -73,6 +73,11 @@ if env['XPCC_DEVICE'].startswith('lpc11'):
 	globalIncludes += ['nxp/lpc11xx/Include']
 
 # -----------------------------------------------------------------------------
+# Add the Realtek device header files
+if env['XPCC_DEVICE'].startswith('rtl8710'):
+	globalIncludes += ['realtek/rtl8710/Include']
+
+# -----------------------------------------------------------------------------
 if 'stm32f' in env['XPCC_DEVICE'] and not env['XPCC_DEVICE'].startswith('stm32f0'):
 	sourcePath += ['freertos']		# FreeRTOS for STM32
 	sourcePath += ['fatfs']			# FatFS

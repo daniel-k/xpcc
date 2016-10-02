@@ -12,6 +12,7 @@ import re
 import sys
 import os
 import platform
+from parser_exception import ParserException
 
 # add python module logger to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'logger'))
@@ -94,6 +95,14 @@ class DeviceIdentifier:
 			if len(string) >= 9:
 				self.valid = True
 
+		elif string.startswith('rtl871'):
+			self.platform = "rtl"
+			self.family = "871x"
+			self.name = string[6:7]
+			if len(string) >= 7:
+				self.pin_id = string[7:9]
+        		self.valid = True
+
 		# AVR platform with AT90, ATtiny, ATmega and ATxmega family
 		elif string.startswith('at'):
 			self.platform = "avr"
@@ -143,7 +152,7 @@ class DeviceIdentifier:
 			if len(string) >= 7:
 				self.valid = True
 		else:
-			raise ParserException("Parse Error: unknown platform. Device string: %" % (string))
+			raise ParserException("Parse Error: unknown platform. Device string: %s" % (string))
 
 	@property
 	def string(self):

@@ -101,6 +101,12 @@ def platform_tools_find_device_file(env):
 				if id.name in names and id.pin_id in pins and id.size_id in sizes:
 					device_file = os.path.join(xml_path, file)
 					break
+
+	elif id.platform == 'rtl':
+		for file in os.listdir(xml_path):
+			if 'rtl'+id.family in file:
+				device_file = os.path.join(xml_path, file)
+				break
 	else:
 		temp_device = device
 		while temp_device != None and len(temp_device) > 0:
