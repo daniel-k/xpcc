@@ -51,6 +51,9 @@ struct R2MACDefaultParameters
 	/// Node lease time
 	static constexpr uint32_t timeNodeLeaseUs = 1000000;
 
+	/// Node update lease time (should be shorter than timeNodeLeaseUs)
+	static constexpr uint32_t timeNodeLeaseUpdateUs = 250000;
+
 	/// Probability in percent to become a coordinator if no super frame is
 	/// received during role selection
 	static constexpr int coordinatorElectionProbabilityPercent = 70;
@@ -208,7 +211,6 @@ private:
 		};
 	};
 
-
 //	class xpcc_packed Packet
 //	{
 //		Packet() :
@@ -230,10 +232,17 @@ private:
 //		Feedback* feedback;
 //	};
 
+	using DataRXQueue = xpcc::BoundedDeque<Packet, Parameters::receivedDataQueueSize>;
+	using DataTXQueue = xpcc::BoundedDeque<Packet, Parameters::sendDataQueueSize>;
+	using BeaconQueue = xpcc::BoundedDeque<Packet, Parameters::beaconQueueSize>;
+	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, Parameters::associationQueueSize>;
 
 public:
 	static void
 	initialize(NetworkAddress network, NodeAddress address);
+
+	static NodeAddress
+	getAddress();
 
 	static void
 	update();
@@ -374,8 +383,10 @@ private:
 			UpdateNodeList,
 			LeaveCoordinatorRole,
 		};
+
 		Activity activity;
 		TimeoutUs timeoutUs;
+		NodeTimerList memberLeaseTimeouts;
 	};
 
 	class MemberActivity : private xpcc::Resumable<1>
@@ -403,28 +414,33 @@ private:
 			OwnSlot,
 			LeaveNetwork,
 		};
+
 		Activity activity;
 		TimeoutUs timeoutUs;
+		TimeoutUs leaseTimeoutUs;
+		TimeoutUs ownSlotTimeoutUs;
+		int32_t associationSlot;
 	};
 
 private:
+	static NodeAddress coordinatorAddress;
 	static uint8_t memberCount;
 	static NodeList memberList;
-	static NodeTimerList memberLeaseTimeouts;
-	static NodeAddress coordinatorAddress;
+	static uint8_t ownDataSlot;
+
 	static xpcc::Timestamp timeLastBeacon;
 	static xpcc::Timestamp timestamp;
-	static Role role;
-	static RoleSelectionActivity roleSelectionActivity;
-	static CoordinatorActivity coordinatorActivity;
-	static MemberActivity memberActivity;
+
+	static typename Nrf24Data::Packet packet;
 	static DataRXQueue dataRXQueue;
 	static DataTXQueue dataTXQueue;
 	static AssociationQueue associationQueue;
 	static BeaconQueue beaconQueue;
-	static uint8_t ownDataSlot;
 
-	static typename Nrf24Data::Frame packet;
+	static Role role;
+	static RoleSelectionActivity roleSelectionActivity;
+	static CoordinatorActivity coordinatorActivity;
+	static MemberActivity memberActivity;
 };
 
 }

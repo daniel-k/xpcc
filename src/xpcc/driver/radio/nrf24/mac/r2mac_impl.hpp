@@ -70,6 +70,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 }
 
 template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::NodeAddress
+xpcc::R2MAC<Nrf24Data, Parameters>::getAddress()
+{
+	return Nrf24Data::getAddress();
+}
+
+template<typename Nrf24Data, class Parameters>
 void
 xpcc::R2MAC<Nrf24Data, Parameters>::update()
 {
@@ -138,7 +145,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 
 		// filter packet by its destination address
 		if ((packet.dest != Nrf24Data::getBroadcastAddress()) and
-		    (packet.dest != Nrf24Data::getAddress())) {
+			(packet.dest != Nrf24Data::getAddress())) {
 
 			R2MAC_LOG_INFO << "Overheard " << Frames::getName(packet)
 			               << " frame from 0x" << xpcc::hex << packet.src
@@ -205,11 +212,16 @@ bool
 xpcc::R2MAC<Nrf24Data, Parameters>::updateNetworkInfo(NodeAddress& coordinatorAddress,
                                                 typename Frames::Beacon& beacon)
 {
+	NodeAddress myAddress = getAddress();
 	coordinatorAddress = coordinatorAddress;
 
 	memberCount = beacon.memberCount;
 	for(uint8_t i = 0; i < memberCount; i++) {
 		memberList[i] = static_cast<NodeAddress>(beacon.members[i]);
+
+		if(memberList[i] == myAddress) {
+			ownDataSlot = i + 1;
+		}
 	}
 
 	return true;

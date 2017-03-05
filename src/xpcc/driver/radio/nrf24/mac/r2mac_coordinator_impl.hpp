@@ -35,7 +35,11 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 		DECLARE_ACTIVITY(Activity::Init)
 		{
 			uint8_t i;
+
+			// Reset global variables
+			ownDataSlot = 0;
 			memberCount = 0;
+			coordinatorAddress = getAddress();
 
 			for(i = 0; i < Parameters::maxMembers; i++){
 				// Stop timeout timers
@@ -62,6 +66,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				newBeaconPacket.payload.length = sizeof(Frame::Beacon);
 
 				// Create beacon frame
+				newBeaconFrame->type = Frame::Beacon;
 				newBeaconFrame->memberCount = memberCount;
 				for (uint8_t i = 0; i < memberCount; i++) {
 					newBeaconFrame->members[i] = memberList[i];
@@ -197,6 +202,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::LeaveCoordinatorRole)
 		{
+			// Beacon frame received while beeing coordinator - go to the member role
+			role = Role::Member;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
 		}
 	}
