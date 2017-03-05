@@ -77,6 +77,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 		roleSelectionActivity.update();
 		break;
 	case Role::Coordinator:
+		coordinatorActivity.update()();
 		break;
 	case Role::Member:
 		break;
@@ -105,6 +106,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Frames& packet)
 
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::FrameType
+uint8_t
+xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
+{
+	memcpy(nodeList, memberList, memberCount * sizeof(NodeAddress));
+	return memberCount;
+}
+
+template<typename Nrf24Data, class Parameters>
+void
 xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 {
 	if(Nrf24Data::getPacket(packet)) {

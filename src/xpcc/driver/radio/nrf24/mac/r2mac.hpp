@@ -45,6 +45,12 @@ struct R2MACDefaultParameters
 	/// Number of slots in association period
 	static constexpr int associationSlots = 4; // maybe depend on maxNodes?
 
+	/// Number of slots that a member will wait for a beacon frame
+	static constexpr int maxMissedBeacons = 4;
+
+	/// Node lease time
+	static constexpr uint32_t timeNodeLeaseUs = 1000000;
+
 	/// Probability in percent to become a coordinator if no super frame is
 	/// received during role selection
 	static constexpr int coordinatorElectionProbabilityPercent = 70;
@@ -232,8 +238,8 @@ public:
 	static void
 	update();
 
-	static NodeList
-	getNeighbourList();
+	static uint8_t
+	getNeighbourList(NodeList& nodeList);
 
 	static bool
 	sendPacket(Frames& packet);
@@ -287,6 +293,7 @@ private:
 	using MicroSecondsClock = xpcc::Clock;
 	using PeriodicTimerUs = xpcc::GenericPeriodicTimer<MicroSecondsClock>;
 	using TimeoutUs = xpcc::GenericTimeout<MicroSecondsClock>;
+	using NodeTimerList = std::array<TimeoutUs, Parameters::maxMembers>;
 
 private:
 	/// Enqueue received Nrf24 packets
@@ -356,8 +363,15 @@ private:
 		Activity
 		{
 			Init,
+			SendBeacon,
+			ListenForRequests,
+			SendData,
+			ReceiveData,
+			UpdateNodeList,
+			LeaveCoordinatorRole,
 		};
 		Activity activity;
+		TimeoutUs timeoutUs;
 	};
 
 	class MemberActivity : private xpcc::Resumable<1>
@@ -377,13 +391,22 @@ private:
 		Activity
 		{
 			Init,
+			ReceiveBeacon,
+			CheckAssociation,
+			Associate,
+			WaitForDataSlots,
+			ReceiveData,
+			OwnSlot,
+			LeaveNetwork,
 		};
 		Activity activity;
+		TimeoutUs timeoutUs;
 	};
 
 private:
 	static uint8_t memberCount;
 	static NodeList memberList;
+	static NodeTimerList memberLeaseTimeouts;
 	static NodeAddress coordinatorAddress;
 	static xpcc::Timestamp timeLastBeacon;
 	static xpcc::Timestamp timestamp;
