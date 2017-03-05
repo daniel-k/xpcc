@@ -140,25 +140,14 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 		DECLARE_ACTIVITY(Activity::UpdateNodeList)
 		{
 			NodeAddress updateNode;
-			bool newNode;
+			uint8_t newNode;
 
 			while(not associationQueue.isEmpty()) {
-				newNode = true;
 				updateNode = associationQueue.getFront();
 				associationQueue.removeFront();
 
 				// Check if already associated
-				for(uint8_t i = 0; i < memberCount; i++) {
-					if (memberList[i] == updateNode) {
-						newNode = false;
-
-						// Update lease timeout
-						memberLeaseTimeouts[i].restart(Parameters::timeNodeLeaseUs);
-						R2MAC_LOG_INFO << "Reset lease timer for the existing node: 0x" << xpcc::hex
-									   << updateNode << xpcc::ascii << xpcc::endl;
-						break;
-					}
-				}
+				newNode = getDataSlot(updateNode);
 
 				// Create new node entry and its timeout
 				if (newNode) {
@@ -174,6 +163,12 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 									   << updateNode << xpcc::ascii
 									   << ". Reached maximum amount of members." << xpcc::endl;
 					}
+				} else {
+					// Update lease timeout
+					memberLeaseTimeouts[newNode].restart(Parameters::timeNodeLeaseUs);
+					R2MAC_LOG_INFO << "Reset lease timer for the existing node: 0x" << xpcc::hex
+								   << updateNode << xpcc::ascii << xpcc::endl;
+
 				}
 			}
 

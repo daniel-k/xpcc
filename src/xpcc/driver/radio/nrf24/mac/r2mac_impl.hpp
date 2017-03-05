@@ -40,6 +40,10 @@ template<typename Nrf24Data, class Parameters>
 xpcc::Timestamp
 xpcc::R2MAC<Nrf24Data, Parameters>::timestamp;
 
+template<typename Nrf24Data, class Parameters>
+uint8_t
+xpcc::R2MAC<Nrf24Data, Parameters>::ownDataSlot = 0;
+
 
 template<typename Nrf24Data, class Parameters>
 void
@@ -105,7 +109,6 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Frames& packet)
 }
 
 template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::FrameType
 uint8_t
 xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
 {
@@ -114,7 +117,20 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
 }
 
 template<typename Nrf24Data, class Parameters>
-void
+uint8_t
+xpcc::R2MAC<Nrf24Data, Parameters>::getDataSlot(NodeAddress nodeAddress)
+{
+	for(uint8_t i = 0; i < memberCount; i++) {
+		if (memberList[i] == nodeAddress) {
+			return i + 1;
+		}
+	}
+
+	return 0;
+}
+
+template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::FrameType
 xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 {
 	if(Nrf24Data::getPacket(packet)) {

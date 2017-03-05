@@ -296,6 +296,10 @@ private:
 	using NodeTimerList = std::array<TimeoutUs, Parameters::maxMembers>;
 
 private:
+	/// Check whether node is listed inside node list
+	static uint8_t
+	getDataSlot(NodeAddress nodeAddress);
+
 	/// Enqueue received Nrf24 packets
 	static FrameType
 	handlePackets(void);
@@ -418,6 +422,7 @@ private:
 	static DataTXQueue dataTXQueue;
 	static AssociationQueue associationQueue;
 	static BeaconQueue beaconQueue;
+	static uint8_t ownDataSlot;
 
 	static typename Nrf24Data::Frame packet;
 };
