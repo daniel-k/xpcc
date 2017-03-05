@@ -35,6 +35,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 	{
 		DECLARE_ACTIVITY(Activity::Init)
 		{
+			beaconQueue.clear();
 			CALL_ACTIVITY(Activity::ListenForBeacon);
 		}
 
@@ -44,27 +45,23 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 			timeoutUs.restart(timeMaxSuperFrameUs);
 
 			while(not timeoutUs.execute()) {
-				if(Nrf24Data::getPacket(packet)) {
-					if(Frames::getType(packet) == FrameType::Beacon) {
 
-						// TODO: verify if this timing is precise enough,
-						//       probably it is not!
-						timeLastBeacon = MicroSecondsClock::now();
+				if(not beaconQueue.empty()) {
+					// TODO: verify if this timing is precise enough,
+					//       probably it is not!
+					timeLastBeacon = MicroSecondsClock::now();
 
-						const int32_t timePassedMs =
-						        (timeMaxSuperFrameUs - timeoutUs.remaining()) / 1000;
+					const int32_t timePassedMs =
+							(timeMaxSuperFrameUs - timeoutUs.remaining()) / 1000;
 
-						R2MAC_LOG_INFO << "Found coordinator 0x" << xpcc::hex
-						               << packet.src << xpcc::ascii << " after "
-						               << timePassedMs << " ms" << xpcc::endl;
+					R2MAC_LOG_INFO << "Found coordinator 0x" << xpcc::hex
+								   << packet.src << xpcc::ascii << " after "
+								   << timePassedMs << " ms" << xpcc::endl;
 
-						CALL_ACTIVITY(Activity::BecomeMember);
-					} else {
-						// just drop everything else
-					}
-				} else {
-					RF_YIELD();
+					CALL_ACTIVITY(Activity::BecomeMember);
 				}
+
+				RF_YIELD();
 			}
 
 			// no beacon received in time ...
@@ -73,13 +70,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 		DECLARE_ACTIVITY(Activity::BecomeMember)
 		{
-			// try to join the network of the just received beacon
-			auto beacon = reinterpret_cast<typename Frames::Beacon*>
-			                                (packet.payload.data);
-			updateNetworkInfo(packet.src, *beacon);
-
 			// TODO: try association
-
+			role = Role::Member;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
 		}
 
@@ -101,15 +93,17 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 				}
 
 				while(not timeoutUs.execute()) {
-					if(Nrf24Data::getPacket(packet)) {
-						if(Frames::getType(packet) == FrameType::Beacon) {
-							CALL_ACTIVITY(Activity::BecomeMember);
-						}
-					} else {
-						RF_YIELD();
+					if(not beaconQueue.empty()) {
+						CALL_ACTIVITY(Activity::BecomeMember);
 					}
+
+					RF_YIELD();
 				}
+
+				CALL_ACTIVITY(Activity::BecomeCoordinator);
 			}
+
+			CALL_ACTIVITY(Activity::ListenForBeacon);
 
 			// flip a coin if becoming coordinator:
 			//   yes: listen for random period, if no beacon received, become coordinator
@@ -118,6 +112,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 		DECLARE_ACTIVITY(Activity::BecomeCoordinator)
 		{
+			role = Role::Coordinator;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
 		}
 	}
