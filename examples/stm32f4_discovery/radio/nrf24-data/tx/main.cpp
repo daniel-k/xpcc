@@ -104,11 +104,11 @@ main()
 	nrf24data::Packet packet;
 
 	// Send this packet to the other endpoint of this example
-	packet.dest = address_rx_side;
+	packet.setDestination(address_rx_side);
 
 	// We have 4 bytes payload, so interpret them as an uint32_t and increment
 	// over time
-	uint32_t* data = reinterpret_cast<uint32_t*>(packet.payload.data);
+	uint32_t* data = reinterpret_cast<uint32_t*>(packet.payload);
 
 	while(1)
 	{
