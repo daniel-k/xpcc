@@ -255,11 +255,6 @@ struct Nrf24Register
 	};
 	XPCC_FLAGS8(Feature);
 
-	typedef FlagsGroup<
-			Feature_t, DynPd_t, FifoStatus_t, Rpd_t, ObserveTx_t, Status_t,
-			RfSetup_t, SetupRetr_t, SetupAw_t, EnRxAddr_t, EnAA_t, Config_t
-	> Flags_t;
-
 	enum class
 	InterruptFlag : uint8_t
 	{
@@ -269,6 +264,13 @@ struct Nrf24Register
 		ALL    = Bit4 | Bit5 | Bit6
 	};
 	XPCC_FLAGS8(InterruptFlag);
+
+	typedef FlagsGroup<
+			Feature_t, DynPd_t, FifoStatus_t, Rpd_t, ObserveTx_t, Status_t,
+	        RfSetup_t, SetupRetr_t, SetupAw_t, EnRxAddr_t, EnAA_t, Config_t,
+	        InterruptFlag_t
+	> Flags_t;
+
 };
 
 }   // namespace xpcc
