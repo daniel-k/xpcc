@@ -102,27 +102,17 @@ public:
 	using NetworkAddress = typename Nrf24Data::BaseAddress;
 	using NodeAddress = typename Nrf24Data::Address;
 	using NodeList = std::array<NodeAddress, Parameters::maxMembers>;
-//	using Feedback = typename Nrf24Data::SendingState;
-	using DataRXQueue = xpcc::BoundedDeque<typename Nrf24Data::Frame, Parameters::receivedDataQueueSize>;
-	using DataTXQueue = xpcc::BoundedDeque<typename Nrf24Data::Frame, Parameters::sendDataQueueSize>;
-	using BeaconQueue = xpcc::BoundedDeque<typename Nrf24Data::Frame, Parameters::beaconQueueSize>;
-	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, Parameters::associationQueueSize>;
 
 	// convenience typedef
 	using Config = typename Nrf24Data::Config;
-
-	struct Feedback {
-		bool success;
-		typename Nrf24Data::Feedback state;
-	};
+	using Nrf24DataPacket = typename Nrf24Data::Packet;
 
 	static constexpr uint8_t
 	getPayloadLength()
 	{ return Parameters::payloadLength; }
 
-	// TODO: how to expose Header so that we can plug other layers on top in the
-	//       same way?
-	class xpcc_packed Frame
+
+	class xpcc_packed Packet
 	{
 		// R2MAC needs to access private interfaces
 		friend R2MAC;
@@ -154,8 +144,7 @@ public:
 		Header	header;
 	public:
 		/// User will put data here
-		uint8_t	payload[getPayloadLength()];
-
+		uint8_t	payload[Nrf24Data::Packet::getPayloadLength() - sizeof(Header)];
 
 	// ------ Functions ------
 	public:
@@ -192,7 +181,7 @@ public:
 
 	static constexpr uint8_t
 	getFrameOverhead()
-	{ return Nrf24Data::getFrameOverhead() + sizeof (Frame::Header); }
+	{ return Nrf24Data::getFrameOverhead() + sizeof(typename Packet::Header); }
 
 
 private:
@@ -211,30 +200,9 @@ private:
 		};
 	};
 
-//	class xpcc_packed Packet
-//	{
-//		Packet() :
-//		    payloadLength(getPayloadLength()), feedback(nullptr) {}
-
-//	// Buffer that will be sent in the end. User is not supposed to modify lower
-//	// layer headers, so they are private.
-//	private:
-//		uint8_t headers[getFrameOverhead()];
-//	public:
-//		uint8_t payload[getPayloadLength()];
-//	// -------------------------------------
-
-//	public:
-//		// Metadata of packet used for communication with user
-//		uint8_t payloadLength;
-//		NodeAddress sourceAddress;
-//		NodeAddress destinationAddress;
-//		Feedback* feedback;
-//	};
-
 	using DataRXQueue = xpcc::BoundedDeque<Packet, Parameters::receivedDataQueueSize>;
-	using DataTXQueue = xpcc::BoundedDeque<Packet, Parameters::sendDataQueueSize>;
 	using BeaconQueue = xpcc::BoundedDeque<Packet, Parameters::beaconQueueSize>;
+	using DataTXQueue = xpcc::BoundedDeque<Nrf24DataPacket, Parameters::sendDataQueueSize>;
 	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, Parameters::associationQueueSize>;
 
 public:
@@ -256,6 +224,10 @@ public:
 	static bool
 	getPacket(Frames& packet);
 
+	static bool
+	isAssociated()
+	{ return ((ownDataSlot != 0) or (role == Role::Coordinator)); }
+
 private:
 
 	static constexpr uint32_t
@@ -266,7 +238,7 @@ private:
 	}
 
 	/// Fixed payload size of every frame
-	static constexpr uint8_t phyPayloadSizeByte = sizeof(Frame);
+	static constexpr uint8_t phyPayloadSizeByte = sizeof(Packet);
 
 	/// On-air frame size in bits
 	static constexpr uint16_t frameAirSizeBits =
@@ -310,7 +282,7 @@ private:
 	getDataSlot(NodeAddress nodeAddress);
 
 	/// Enqueue received Nrf24 packets
-	static FrameType
+	static typename Packet::Type
 	handlePackets(void);
 
 	/// Get a random value from (inclusive) interval [from, to]
@@ -356,7 +328,6 @@ private:
 
 		Activity activity;
 		TimeoutUs timeoutUs;
-		typename Nrf24Data::Frame packet;
 	};
 
 	class CoordinatorActivity : private xpcc::Resumable<1>
@@ -431,7 +402,6 @@ private:
 	static xpcc::Timestamp timeLastBeacon;
 	static xpcc::Timestamp timestamp;
 
-	static typename Nrf24Data::Packet packet;
 	static DataRXQueue dataRXQueue;
 	static DataTXQueue dataTXQueue;
 	static AssociationQueue associationQueue;

@@ -62,12 +62,20 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 		{
 			// check if associated to the network
 			// TODO: New packet structure
-			auto beacon = reinterpret_cast<typename Frame::Beacon*>
-										  (beaconQueue.getFront().payload.data);
-			updateNetworkInfo(packet.src, *beacon);
-			beaconQueue.removeFront();
 
-			if(not ownDataSlot) {
+			{
+				const auto beaconPacket = reinterpret_cast<Packet*>
+				                            (&beaconQueue.getFront());
+				const auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>
+				                            (beaconPacket->payload);
+
+				updateNetworkInfo(beaconPacket->getSource(), *beaconFrame);
+				beaconQueue.removeFront();
+
+				// beaconPacket and beaconFrame are not valid anymore
+			}
+
+			if(ownDataSlot == 0) {
 				CALL_ACTIVITY(Activity::Associate);
 			}
 
@@ -75,7 +83,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				CALL_ACTIVITY(Activity::Associate);
 			}
 
-			associationSlot = 0;
+			associationSlot = 0;	// why?
 			CALL_ACTIVITY(Activity::WaitForDataSlots);
 		}
 
@@ -87,13 +95,14 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			// Select a random association slot
 			associationSlot = randomRange(1, Parameters::associationSlots);
 
-			// Wait for selected association slot
-			const uint32_t delay = timeAssociationSlotUs * (associationSlot - 1);
-
 			R2MAC_LOG_INFO << "Waiting for " << associationSlot << " slots "
-						   << "to send association request" << xpcc::endl;
+			               << "to send association request" << xpcc::endl;
 
-			timeoutUs.restart(delay);
+			{
+				const uint32_t delay = timeAssociationSlotUs * (associationSlot - 1);
+				timeoutUs.restart(delay);
+			}
+
 			while(not timeoutUs.execute()) {
 				if(not beaconQueue.empty()) {
 					CALL_ACTIVITY(Activity::ReceiveBeacon);
@@ -102,39 +111,37 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				RF_YIELD();
 			}
 
-			// Create association request packet
-			typename Nrf24Data::Packet newAssociationPacket;
-			auto newAssociationFrame =
-						   reinterpret_cast<typename Frame::AssociationRequest*>
-											(newAssociationPacket.payload.data);
+			Nrf24DataPacket packetNrf24Data;
+			auto associationPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
+			auto associationFrame = reinterpret_cast<typename Frames::AssociationRequest*>
+			                            (associationPacket->payload);
 
-			// Construct Nrf24 packet
-			newAssociationPacket.dest = coordinatorAddress;
-			newAssociationPacket.payload.length = sizeof(Frame::AssociationRequest);
+			associationPacket->setDestination(coordinatorAddress);
+			associationPacket->setType(Packet::Type::AssociationRequest);
 
-			// Create association request frame
-			//   Note: type casting do not execute structure contructor
-			newAssociationFrame->type = Frame::AssociationRequest;
+			Nrf24Data::sendPacket(packetNrf24Data);
 
-			// Enqueue new packet
-			Nrf24Data::sendPacket(newAssociationPacket);
-
-			// If not yet associated - wait for beacon frame
-			if (not ownDataSlot) {
+			if (not isAssociated()) {
+				// wait for beacon
 				CALL_ACTIVITY(Activity::ReceiveBeacon);
+			} else {
+				// we already have been associated and only sent an association
+				// request for lease renewal
+				CALL_ACTIVITY(Activity::WaitForDataSlots);
 			}
-
-			CALL_ACTIVITY(Activity::WaitForDataSlots);
 		}
 
 		DECLARE_ACTIVITY(Activity::WaitForDataSlots)
 		{
-			// Calculate StartOfDataSlots timeout
-			const uint32_t delay = timeAssociationSlotUs *
-						   (Parameters::associationSlots - associationSlot);
+			{
+				// Calculate StartOfDataSlots timeout
+				const uint32_t delay = timeAssociationSlotUs *
+				               (Parameters::associationSlots - associationSlot);
 
-			// Wait for the beginning of data slots
-			timeoutUs.restart(delay);
+				// Wait for the beginning of data slots
+				timeoutUs.restart(delay);
+			}
+
 			while(not timeoutUs.execute()) {
 				if(not beaconQueue.empty()) {
 					CALL_ACTIVITY(Activity::ReceiveBeacon);

@@ -58,22 +58,19 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
 			{
-				typename Nrf24Data::Packet newBeaconPacket;
-				auto newBeaconFrame = reinterpret_cast<typename Frame::Beacon*>(newBeaconPacket.payload.data);
+				Nrf24DataPacket packetNrf24Data;
+				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
+				auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
 
-				// Construct Nrf24 packet
-				newBeaconPacket.dest = Nrf24Data::getBroadcastAddress();
-				newBeaconPacket.payload.length = sizeof(Frame::Beacon);
+				beaconPacket->setDestination(Nrf24Data::getBroadcastAddress());
+				beaconPacket->setType(Packet::Type::Beacon);
 
-				// Create beacon frame
-				newBeaconFrame->type = Frame::Beacon;
-				newBeaconFrame->memberCount = memberCount;
+				beaconFrame->memberCount = memberCount;
 				for (uint8_t i = 0; i < memberCount; i++) {
-					newBeaconFrame->members[i] = memberList[i];
+					beaconFrame->members[i] = memberList[i];
 				}
 
-				// Enqueue new packet
-				Nrf24Data::sendPacket(newBeaconPacket);
+				Nrf24Data::sendPacket(packetNrf24Data);
 			}
 
 			CALL_ACTIVITY(Activity::ListenForRequests);
@@ -86,7 +83,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 			// Wait for association requests. Note: All Nrf24 packets are parsed
 			//  (and pushed on a proper queue) inside .update() function.
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
 
@@ -101,17 +98,16 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 			timeoutUs.restart(timeDataSlotUs - timeGuardUs);
 
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
 
 				if(not dataTXQueue.isEmpty()) {
 					// TODO: Retransmissions not included in time calculation.
-					if (timeoutUs.remaining() > frameAirTimeUs) {
-						// Enqueue new packet
-						Nrf24Data::sendPacket(dataTXQueue.getFront());
 
-						// Remove packet from TX queue
+					if (timeoutUs.remaining() > frameAirTimeUs) {
+						// Send and remove packet from TX queue
+						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
 					} else {
 						// not enough time to send packet anymore
@@ -132,7 +128,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 			timeoutUs.restart(timeDataSlotUs * memberCount);
 
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
 

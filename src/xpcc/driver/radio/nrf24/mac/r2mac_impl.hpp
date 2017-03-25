@@ -44,6 +44,23 @@ template<typename Nrf24Data, class Parameters>
 uint8_t
 xpcc::R2MAC<Nrf24Data, Parameters>::ownDataSlot = 0;
 
+template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::DataRXQueue
+xpcc::R2MAC<Nrf24Data, Parameters>::dataRXQueue;
+
+template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::DataTXQueue
+xpcc::R2MAC<Nrf24Data, Parameters>::dataTXQueue;
+
+template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::AssociationQueue
+xpcc::R2MAC<Nrf24Data, Parameters>::associationQueue;
+
+template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::BeaconQueue
+xpcc::R2MAC<Nrf24Data, Parameters>::beaconQueue;
+
+
 
 template<typename Nrf24Data, class Parameters>
 void
@@ -88,7 +105,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 		roleSelectionActivity.update();
 		break;
 	case Role::Coordinator:
-		coordinatorActivity.update()();
+		coordinatorActivity.update();
 		break;
 	case Role::Member:
 		break;
@@ -137,66 +154,77 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getDataSlot(NodeAddress nodeAddress)
 }
 
 template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::FrameType
+typename xpcc::R2MAC<Nrf24Data, Parameters>::Packet::Type
 xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 {
-	if(Nrf24Data::getPacket(packet)) {
-		const FrameType frameType = Frames::getType(packet);
+	Nrf24DataPacket packetNrf24Data;
+
+	if(Nrf24Data::getPacket(packetNrf24Data)) {
+
+		const auto packet = reinterpret_cast<Packet*>(&packetNrf24Data);
+		const typename Packet::Type packetType = packet->getType();
 
 		// filter packet by its destination address
-		if ((packet.dest != Nrf24Data::getBroadcastAddress()) and
-			(packet.dest != Nrf24Data::getAddress())) {
+		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
+		    (packet->getDestination() != Nrf24Data::getAddress())) {
 
-			R2MAC_LOG_INFO << "Overheard " << Frames::getName(packet)
-			               << " frame from 0x" << xpcc::hex << packet.src
+			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
+			               << " frame from 0x" << xpcc::hex << packet->getSource()
 			               << xpcc::ascii << " with 0x" << xpcc::hex
-			               << packet.dest << xpcc::ascii << xpcc::endl;
+			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
 
 			// consider data packets as association requests if we're a
 			// coordinator to reset lease timeouts
 			// TODO: evaluate if this is needed
-			if( (role == Role::Coordinator) and (frameType == FrameType::Data) ) {
-				associationQueue.append(packet.src);
+			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
+				associationQueue.append(packet->getSource());
 			}
 		} else {
 			// parse incoming packet
-			switch(Frames::getType(packet)) {
-			case FrameType::Beacon: {
-				timeLastBeacon = packet.timestamp;
-				beaconQueue.append(packet);
+			switch(packetType) {
+			case Packet::Type::Beacon: {
 
-				const int32_t timePassedUs = packet.timestamp - timeLastBeacon;
+				const xpcc::Timestamp packetTimestamp = Nrf24Data::getFeedback().timestamp;
+				const uint32_t timePassedUs = (packetTimestamp - timeLastBeacon).getTime();
+
 				R2MAC_LOG_INFO << "Received new beacon frame from: 0x"
-				               << xpcc::hex << packet.src << xpcc::ascii
-				               << " after: " << timePassedUs / 1000 << " ms"
+				               << xpcc::hex << packet->getSource() << xpcc::ascii
+				               << " after " << timePassedUs / 1000 << " ms"
 				               << xpcc::endl;
+
+				// remember time of beacon and append
+				timeLastBeacon = packetTimestamp;
+				beaconQueue.append(*packet);
+
 				break;
 			}
-			case FrameType::AssociationRequest:
+			case Packet::Type::AssociationRequest:
 				// Append requesting node (packet source) address to the queue
-				associationQueue.append(packet.src);
+				associationQueue.append(packet->getSource());
 
 				R2MAC_LOG_INFO << "Received new association request from: 0x"
-				               << xpcc::hex << packet.src << xpcc::ascii
+				               << xpcc::hex << packet->getSource() << xpcc::ascii
 				               << xpcc::endl;
 				break;
-			case FrameType::Data:
+			case Packet::Type::Data:
 				R2MAC_LOG_INFO << "Received new data packet from: 0x"
-				               << xpcc::hex << packet.src << xpcc::ascii
+				               << xpcc::hex << packet->getSource() << xpcc::ascii
 				               << xpcc::endl;
 
-				if(not dataRXQueue.append(packet)) {
+				if(not dataRXQueue.append(*packet)) {
 					R2MAC_LOG_INFO << "Data RX queue is full, dropping packet"
 					               << xpcc::endl;
 				}
 				break;
+			case Packet::Type::None:
+				break;
 			}
 		}
 
-		return frameType;
+		return packetType;
 	}
 
-	return FrameType::None;
+	return Packet::Type::None;
 }
 
 template<typename Nrf24Data, class Parameters>

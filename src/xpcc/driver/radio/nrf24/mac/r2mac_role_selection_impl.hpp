@@ -46,17 +46,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 			while(not timeoutUs.execute()) {
 
-				if(not beaconQueue.empty()) {
-					// TODO: verify if this timing is precise enough,
-					//       probably it is not!
-					timeLastBeacon = MicroSecondsClock::now();
+				if(not beaconQueue.isEmpty()) {
 
 					const int32_t timePassedMs =
 							(timeMaxSuperFrameUs - timeoutUs.remaining()) / 1000;
 
 					R2MAC_LOG_INFO << "Found coordinator 0x" << xpcc::hex
-								   << packet.src << xpcc::ascii << " after "
-								   << timePassedMs << " ms" << xpcc::endl;
+					               << beaconQueue.getFront().getSource()
+					               << xpcc::ascii << " after " << timePassedMs
+					               << " ms" << xpcc::endl;
 
 					CALL_ACTIVITY(Activity::BecomeMember);
 				}
@@ -93,7 +91,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 				}
 
 				while(not timeoutUs.execute()) {
-					if(not beaconQueue.empty()) {
+					if(not beaconQueue.isEmpty()) {
 						CALL_ACTIVITY(Activity::BecomeMember);
 					}
 
