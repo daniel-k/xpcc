@@ -247,7 +247,9 @@ template<typename Nrf24Data, class Parameters>
 uint32_t
 xpcc::R2MAC<Nrf24Data, Parameters>::randomRange(uint32_t from, uint32_t to)
 {
-	return from + (rand() % (to - from + 1));
+	const uint32_t ret = from + (rand() % (to - from + 1));
+//	XPCC_LOG_DEBUG.printf("randRange(%u, %u) = %u\n", from, to, ret);
+	return ret;
 }
 
 

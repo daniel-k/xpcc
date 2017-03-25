@@ -33,7 +33,7 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 {
-	static xpcc::PeriodicTimer rateLimiter(12);
+	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
 		R2MAC_LOG_INFO << YELLOW << "Activity: " << toStr(activity) << END << xpcc::endl;
 	}
@@ -84,6 +84,14 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 
 			R2MAC_LOG_INFO << "Member count: " << memberCount << xpcc::endl;
+
+
+			R2MAC_LOG_INFO << "members: ";
+			for(int i = 0; i < memberCount; i++) {
+				XPCC_LOG_INFO.printf("0x%02x ", memberList[i]);
+			}
+			XPCC_LOG_INFO << xpcc::endl;
+
 //			R2MAC_LOG_INFO << "Super Frame duration: "
 //			               << (getSuperFrameDurationUs(memberCount) / 1000)
 //			               << " ms" << xpcc::endl;
@@ -160,44 +168,46 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::UpdateNodeList)
 		{
-			NodeAddress updateNode;
-			uint8_t newNode;
 
 			R2MAC_LOG_INFO << "Update Node List" << xpcc::endl;
 
 			while(not associationQueue.isEmpty()) {
-				updateNode = associationQueue.getFront();
+
+				R2MAC_LOG_INFO << "there's an association request" << xpcc::endl;
+
+				NodeAddress newMemberAddress = associationQueue.getFront();
 				associationQueue.removeFront();
 
 				// Check if already associated
-				newNode = getDataSlot(updateNode);
+				const uint8_t slotNumber = getDataSlot(newMemberAddress);
 
-				// Create new node entry and its timeout
-				if (newNode) {
+				if(slotNumber == 0) {
+					// Create new node entry and its timeout
 					if (memberCount < Parameters::maxMembers) {
-						memberList[memberCount] = newNode;
+						memberList[memberCount] = newMemberAddress;
 						memberLeaseTimeouts[memberCount].restart(Parameters::timeNodeLeaseUs);
 						memberCount++;
 
 						R2MAC_LOG_INFO << "Register new member node: 0x" << xpcc::hex
-									   << updateNode << xpcc::ascii << xpcc::endl;
+						               << newMemberAddress << xpcc::ascii << xpcc::endl;
 					} else {
 						R2MAC_LOG_ERROR << "Unable to associate new member: 0x" << xpcc::hex
-									   << updateNode << xpcc::ascii
+						               << newMemberAddress << xpcc::ascii
 									   << ". Reached maximum amount of members." << xpcc::endl;
 					}
 				} else {
 					// Update lease timeout
-					memberLeaseTimeouts[newNode].restart(Parameters::timeNodeLeaseUs);
+					const uint8_t index = slotNumber - 1;
+					memberLeaseTimeouts[index].restart(Parameters::timeNodeLeaseUs);
 					R2MAC_LOG_INFO << "Reset lease timer for the existing node: 0x" << xpcc::hex
-								   << updateNode << xpcc::ascii << xpcc::endl;
+					               << newMemberAddress << xpcc::ascii << xpcc::endl;
 
 				}
 			}
 
 			// Check timers whether executed (node lease time)
 			// Scan backwards, because when you relocate expired timer with the last timer in a list
-			//  you have to know whether relocated timer has expired (no double check after reassigning).
+			// you have to know whether relocated timer has expired (no double check after reassigning).
 			for (int8_t expiredNodeIndex = memberCount - 1; expiredNodeIndex >= 0; expiredNodeIndex--) {
 				if (memberLeaseTimeouts[expiredNodeIndex].isExpired()) {
 					const uint8_t lastNodeIndex = memberCount - 1;

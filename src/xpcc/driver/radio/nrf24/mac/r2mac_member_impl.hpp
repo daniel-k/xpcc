@@ -33,7 +33,7 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 {
-	static xpcc::PeriodicTimer rateLimiter(200);
+	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
 		R2MAC_LOG_INFO << GREEN << "Activity: " << toStr(activity) << END << xpcc::endl;
 	}

@@ -40,13 +40,13 @@ namespace xpcc
 struct R2MACDefaultParameters
 {
 	/// Maximum number of associated member nodes (not counting coordinator)
-	static constexpr int maxMembers = 15;
+	static constexpr int maxMembers = 5;
 
 	/// Max payload that user application wants to transmit
 	static constexpr int payloadLength = 29;
 
 	/// Number of raw frames that fit into a data slot
-	static constexpr int framesPerDataSlot = 400;
+	static constexpr int framesPerDataSlot = 300;
 
 	/// Number of raw frames that fit into an association slot
 	static constexpr int framesPerAssociationSlot = 1;
@@ -58,10 +58,10 @@ struct R2MACDefaultParameters
 	static constexpr int maxMissedBeacons = 4;
 
 	/// Node lease time
-	static constexpr uint32_t timeNodeLeaseUs = 1000000;
+	static constexpr uint32_t timeNodeLeaseUs = 1000 * 1000;
 
 	/// Node update lease time (should be shorter than timeNodeLeaseUs)
-	static constexpr uint32_t timeNodeLeaseUpdateUs = 250000;
+	static constexpr uint32_t timeNodeLeaseUpdateUs = timeNodeLeaseUs / 2;
 
 	/// Probability in percent to become a coordinator if no super frame is
 	/// received during role selection

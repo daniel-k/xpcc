@@ -34,7 +34,7 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 {
-	static xpcc::PeriodicTimer rateLimiter(200);
+	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
 		R2MAC_LOG_INFO << BLUE << "Activity: " << toStr(activity) << END << xpcc::endl;
 	}
@@ -67,6 +67,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 					CALL_ACTIVITY(Activity::BecomeMember);
 				}
 
+				R2MAC_LOG_INFO << "still listening for beacon for " << timeoutUs.remaining() / 1000 << " ms" << xpcc::endl;
 				RF_YIELD();
 			}
 
