@@ -35,7 +35,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(200);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
+		R2MAC_LOG_INFO << GREEN << "Activity: " << toStr(activity) << END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
@@ -56,7 +56,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 			// Wait for Beacon frame
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::CheckAssociation);
 				}
 
@@ -72,12 +72,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			// TODO: New packet structure
 
 			{
-				const auto beaconPacket = reinterpret_cast<Packet*>
-				                            (&beaconQueue.getFront());
-				const auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>
-				                            (beaconPacket->payload);
+				Packet& beaconPacket = beaconQueue.getFront();
+				auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>
+				                            (beaconPacket.payload);
 
-				updateNetworkInfo(beaconPacket->getSource(), *beaconFrame);
+
+				XPCC_LOG_INFO.printf("found coordinator 0x%02x\n", beaconPacket.getSource());
+				updateNetworkInfo(beaconPacket.getSource(), *beaconFrame);
 				beaconQueue.removeFront();
 
 				// beaconPacket and beaconFrame are not valid anymore
@@ -112,22 +113,25 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			}
 
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::ReceiveBeacon);
 				}
 
 				RF_YIELD();
 			}
 
-			Nrf24DataPacket packetNrf24Data;
-			auto associationPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
-			auto associationFrame = reinterpret_cast<typename Frames::AssociationRequest*>
-			                            (associationPacket->payload);
+			{
+				Nrf24DataPacket packetNrf24Data;
+				auto associationPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
 
-			associationPacket->setDestination(coordinatorAddress);
-			associationPacket->setType(Packet::Type::AssociationRequest);
+				XPCC_LOG_INFO.printf("assume coordinator address 0x%02x\n", coordinatorAddress);
+				associationPacket->setDestination(coordinatorAddress);
+				associationPacket->setType(Packet::Type::AssociationRequest);
 
-			Nrf24Data::sendPacket(packetNrf24Data);
+				Nrf24Data::sendPacket(packetNrf24Data);
+			}
+
+			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
 
 			if (not isAssociated()) {
 				// wait for beacon
@@ -151,7 +155,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			}
 
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::ReceiveBeacon);
 				}
 				RF_YIELD();
@@ -170,7 +174,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 		{
 			// Wait for ownSlot
 			while(not timeoutUs.execute()) {
-				if(not beaconQueue.empty()) {
+				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::ReceiveBeacon);
 				}
 
@@ -196,16 +200,16 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 					if (ownSlotTimeoutUs.remaining() > frameAirTimeUs) {
 						// Enqueue new packet
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
-
 						// Remove packet from TX queue
 						dataTXQueue.removeFront();
+
+						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
 					} else {
 						// not enough time to send packet anymore
-						RF_YIELD();
 					}
-				} else {
-					RF_YIELD();
 				}
+
+				RF_YIELD();
 			}
 
 			CALL_ACTIVITY(Activity::ReceiveData);

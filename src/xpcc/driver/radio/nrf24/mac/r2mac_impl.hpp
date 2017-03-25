@@ -117,6 +117,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 		coordinatorActivity.update();
 		break;
 	case Role::Member:
+		memberActivity.update();
 		break;
 	}
 }
@@ -138,7 +139,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Packet& packet)
 	if(dataRXQueue.isEmpty())
 		return false;
 
-	packet = dataRXQueue.getFront();
+	packet = Packet(dataRXQueue.getFront());
 	dataRXQueue.removeFront();
 
 	return true;
@@ -193,7 +194,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 //			}
 //		} else {
 
-		    R2MAC_LOG_INFO << "received a packet!" << xpcc::endl;
+		    R2MAC_LOG_INFO << "received a " << Packet::toStr(packetType) << " packet!" << xpcc::endl;
 
 			// parse incoming packet
 			switch(packetType) {
@@ -252,11 +253,11 @@ xpcc::R2MAC<Nrf24Data, Parameters>::randomRange(uint32_t from, uint32_t to)
 
 template<typename Nrf24Data, class Parameters>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::updateNetworkInfo(NodeAddress& coordinatorAddress,
+xpcc::R2MAC<Nrf24Data, Parameters>::updateNetworkInfo(NodeAddress coordinatorAddr,
                                                 typename Frames::Beacon& beacon)
 {
 	NodeAddress myAddress = getAddress();
-	coordinatorAddress = coordinatorAddress;
+	coordinatorAddress = coordinatorAddr;
 
 	memberCount = beacon.memberCount;
 	for(uint8_t i = 0; i < memberCount; i++) {

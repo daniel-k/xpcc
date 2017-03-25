@@ -34,10 +34,10 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 {
-//	static xpcc::PeriodicTimer rateLimiter(200);
-//	if(rateLimiter.execute()) {
-//		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
-//	}
+	static xpcc::PeriodicTimer rateLimiter(200);
+	if(rateLimiter.execute()) {
+		R2MAC_LOG_INFO << BLUE << "Activity: " << toStr(activity) << END << xpcc::endl;
+	}
 
 	ACTIVITY_GROUP_BEGIN(0)
 	{

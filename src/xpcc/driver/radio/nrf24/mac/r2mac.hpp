@@ -22,7 +22,16 @@
 #undef  XPCC_LOG_LEVEL
 #define XPCC_LOG_LEVEL xpcc::log::DEBUG
 
-#define R2MAC_LOG_INFO	XPCC_LOG_INFO <<	"[r2mac:info] "
+
+
+#define RED        "\e[91m"
+#define GREEN      "\e[92m"
+#define YELLOW     "\e[93m"
+#define BLUE       "\e[94m"
+#define WHITE      "\e[97m"
+#define END        "\e[0m"
+
+#define R2MAC_LOG_INFO	XPCC_LOG_INFO << ((Config::currentMode == Config::Mode::Rx) ? WHITE : RED) <<	"[r2mac:info] " << END
 #define R2MAC_LOG_ERROR	XPCC_LOG_ERROR <<	"[r2mac:error] "
 
 namespace xpcc
@@ -128,6 +137,17 @@ public:
 			Data = 0x03,
 			None = 0xff
 		};
+
+		static const char*
+		toStr(Type type) {
+			switch(type) {
+			case Type::Beacon: return "Beacon";
+			case Type::AssociationRequest: return "AssociationRequest";
+			case Type::Data: return "Data";
+			case Type::None: return "None";
+			default: return "Invalid";
+			}
+		}
 
 	private:
 		struct xpcc_packed Header
@@ -296,7 +316,7 @@ private:
 
 	/// Adopt network information from beacon frame
 	static bool
-	updateNetworkInfo(NodeAddress& coordinatorAddress, typename Frames::Beacon& beacon);
+	updateNetworkInfo(NodeAddress coordinatorAddress, typename Frames::Beacon& beacon);
 
 private:
 	enum class

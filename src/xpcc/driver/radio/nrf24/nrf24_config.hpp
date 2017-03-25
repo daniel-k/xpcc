@@ -219,7 +219,7 @@ public:
 	toNum(Crc crc)
 	{ return static_cast<uint8_t>(crc); }
 
-private:
+public:
 	static Mode currentMode;
 };
 

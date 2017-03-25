@@ -305,6 +305,12 @@ template<typename Nrf24Phy, typename Clock>
 void
 xpcc::Nrf24Data<Nrf24Phy, Clock>::update()
 {
+	static xpcc::PeriodicTimer rateLimiter(1000);
+	if(rateLimiter.execute()) {
+		Nrf24Phy::dumpRegisters();
+	}
+
+
 	// When sending state changed the communication has finished and we switch
 	// back to Rx mode
 	if(updateSendingState()) {

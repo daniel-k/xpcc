@@ -17,7 +17,7 @@
 #include "nrf24_definitions.hpp"
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::WARNING
+#define XPCC_LOG_LEVEL xpcc::log::DEBUG
 
 namespace xpcc
 {

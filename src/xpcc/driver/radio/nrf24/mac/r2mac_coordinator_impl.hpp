@@ -35,7 +35,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(12);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
+		R2MAC_LOG_INFO << YELLOW << "Activity: " << toStr(activity) << END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
@@ -80,8 +80,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 				Nrf24Data::sendPacket(packetNrf24Data);
 			}
-
 			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
+
 
 			R2MAC_LOG_INFO << "Member count: " << memberCount << xpcc::endl;
 //			R2MAC_LOG_INFO << "Super Frame duration: "
@@ -129,6 +129,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 						// Send and remove packet from TX queue
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
+						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
 					} else {
 						// not enough time to send packet anymore
 					}
