@@ -9,15 +9,15 @@
 
 /// Gets called upon enterting the activity group
 #define ACTIVITY_LOG_BEGIN(activity) \
-	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << "Enter with " << activity << xpcc::endl
+	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << "Enter with " << toStr(activity) << xpcc::endl
 
 /// Gets called upon exiting the activity group
 #define ACTIVITY_LOG_EXIT(activity) \
-	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << "Exit with " << activity << xpcc::endl
+	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << "Exit with " << toStr(activity) << xpcc::endl
 
 /// Gets called when a new activity has been called
 #define ACTIVITY_LOG_STATE_CHANGE(oldActivity, newActivity, ...) \
-		XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << oldActivity << " -> " << newActivity << " ()" << xpcc::endl
+	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << toStr(oldActivity) << " -> " << toStr(newActivity) << " ()" << xpcc::endl
 
 
 /// Use at the beginning of an activity group
@@ -32,7 +32,7 @@
 
 /// Immidiately calls the declared activity. Additional parameter will be forwarded to ACTIVITY_LOG_STATE_CHANGE.
 #define CALL_ACTIVITY(nextActivity, ...) do { \
-	        /* ACTIVITY_LOG_STATE_CHANGE(this->activity, nextActivity, ##__VA_ARGS__); */ \
+	        ACTIVITY_LOG_STATE_CHANGE(this->activity, nextActivity, ##__VA_ARGS__); \
 			this->activity = nextActivity; \
 			goto activity_switch; } while(0)
 

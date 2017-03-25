@@ -168,7 +168,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 
 		// as frame was sent without requesting an acknowledgment we cannot
 		// determine the sending state
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::DontKnow;
+		feedbackCurrentPacket.sendingFeedback = SendingFeedback::Busy;
 	} else {
 		// set pipe 0's address to Tx address to receive ACK packet
 		Phy::setRxAddress(Pipe::PIPE_0, destinationRawAddress);

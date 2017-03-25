@@ -14,6 +14,9 @@
 #include <xpcc/processing.hpp>
 #include "r2mac.hpp"
 
+#undef ACTIVITY_LOG_NAME
+#define ACTIVITY_LOG_NAME "coordinator"
+
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::coordinatorActivity;
@@ -30,6 +33,11 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 {
+	static xpcc::PeriodicTimer rateLimiter(12);
+	if(rateLimiter.execute()) {
+		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
+	}
+
 	ACTIVITY_GROUP_BEGIN(0)
 	{
 		DECLARE_ACTIVITY(Activity::Init)
@@ -73,6 +81,18 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				Nrf24Data::sendPacket(packetNrf24Data);
 			}
 
+			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
+
+			R2MAC_LOG_INFO << "Member count: " << memberCount << xpcc::endl;
+//			R2MAC_LOG_INFO << "Super Frame duration: "
+//			               << (getSuperFrameDurationUs(memberCount) / 1000)
+//			               << " ms" << xpcc::endl;
+//			R2MAC_LOG_INFO << "Data Slot duration: " << (timeDataSlotUs / 1000)
+//			               << " ms" << xpcc::endl;
+//			R2MAC_LOG_INFO << "Association Slot duration: "
+//			               << (timeAssociationSlotUs / 1000) << " ms"
+//			               << xpcc::endl;
+
 			CALL_ACTIVITY(Activity::ListenForRequests);
 		}
 
@@ -97,7 +117,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 		{
 			timeoutUs.restart(timeDataSlotUs - timeGuardUs);
 
-			while(not timeoutUs.execute()) {
+			while(not timeoutUs.isExpired()) {
 				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
@@ -105,17 +125,16 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				if(not dataTXQueue.isEmpty()) {
 					// TODO: Retransmissions not included in time calculation.
 
-					if (timeoutUs.remaining() > frameAirTimeUs) {
+					if (timeoutUs.remaining() > (2 * frameAirTimeUs)) {
 						// Send and remove packet from TX queue
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
 					} else {
 						// not enough time to send packet anymore
-						RF_YIELD();
 					}
-				} else {
-					RF_YIELD();
 				}
+
+				RF_YIELD();
 			}
 
 			// Skip to the members data slots
@@ -142,6 +161,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 		{
 			NodeAddress updateNode;
 			uint8_t newNode;
+
+			R2MAC_LOG_INFO << "Update Node List" << xpcc::endl;
 
 			while(not associationQueue.isEmpty()) {
 				updateNode = associationQueue.getFront();

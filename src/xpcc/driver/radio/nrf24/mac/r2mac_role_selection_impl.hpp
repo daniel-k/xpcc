@@ -15,6 +15,9 @@
 #include "r2mac.hpp"
 #include "activity.hpp"
 
+#undef ACTIVITY_LOG_NAME
+#define ACTIVITY_LOG_NAME "role-selection"
+
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::roleSelectionActivity;
@@ -31,6 +34,11 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 {
+//	static xpcc::PeriodicTimer rateLimiter(200);
+//	if(rateLimiter.execute()) {
+//		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
+//	}
+
 	ACTIVITY_GROUP_BEGIN(0)
 	{
 		DECLARE_ACTIVITY(Activity::Init)
@@ -42,7 +50,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 		DECLARE_ACTIVITY(Activity::ListenForBeacon)
 		{
 			// listen for duration of one super frame
-			timeoutUs.restart(timeMaxSuperFrameUs);
+			timeoutUs.restart(timeMaxSuperFrameUs * 2);
 
 			while(not timeoutUs.execute()) {
 
@@ -68,6 +76,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 		DECLARE_ACTIVITY(Activity::BecomeMember)
 		{
+			R2MAC_LOG_INFO << "Becoming Member!" << xpcc::endl;
+
 			// TODO: try association
 			role = Role::Member;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
@@ -110,6 +120,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 		DECLARE_ACTIVITY(Activity::BecomeCoordinator)
 		{
+			R2MAC_LOG_INFO << "Become Coordinator!" << xpcc::endl;
+
 			role = Role::Coordinator;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
 		}

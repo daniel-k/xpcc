@@ -45,6 +45,7 @@ public:
 	typedef uint64_t		BaseAddress;
 	typedef uint8_t			Address;
 	typedef xpcc::Timestamp	Timestamp;
+	typedef Clock			ClockLower;
 	/// @}
 
 	/// @ingroup	nrf24

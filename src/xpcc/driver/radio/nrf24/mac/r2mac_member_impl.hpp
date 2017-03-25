@@ -14,6 +14,9 @@
 #include <xpcc/processing.hpp>
 #include "r2mac.hpp"
 
+#undef ACTIVITY_LOG_NAME
+#define ACTIVITY_LOG_NAME "member"
+
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::memberActivity;
@@ -30,6 +33,11 @@ template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 {
+	static xpcc::PeriodicTimer rateLimiter(200);
+	if(rateLimiter.execute()) {
+		R2MAC_LOG_INFO << "Activity: " << toStr(activity) << xpcc::endl;
+	}
+
 	ACTIVITY_GROUP_BEGIN(0)
 	{
 		DECLARE_ACTIVITY(Activity::Init)

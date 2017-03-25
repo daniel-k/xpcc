@@ -20,7 +20,7 @@
 #include <xpcc/driver/radio/nrf24/nrf24_data.hpp>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::DISABLED
+#define XPCC_LOG_LEVEL xpcc::log::DEBUG
 
 #define R2MAC_LOG_INFO	XPCC_LOG_INFO <<	"[r2mac:info] "
 #define R2MAC_LOG_ERROR	XPCC_LOG_ERROR <<	"[r2mac:error] "
@@ -37,7 +37,7 @@ struct R2MACDefaultParameters
 	static constexpr int payloadLength = 29;
 
 	/// Number of raw frames that fit into a data slot
-	static constexpr int framesPerDataSlot = 4;
+	static constexpr int framesPerDataSlot = 400;
 
 	/// Number of raw frames that fit into an association slot
 	static constexpr int framesPerAssociationSlot = 1;
@@ -106,6 +106,7 @@ public:
 	// convenience typedef
 	using Config = typename Nrf24Data::Config;
 	using Nrf24DataPacket = typename Nrf24Data::Packet;
+	using Feedback = typename Nrf24Data::SendingFeedback;
 
 	static constexpr uint8_t
 	getPayloadLength()
@@ -219,10 +220,14 @@ public:
 	getNeighbourList(NodeList& nodeList);
 
 	static bool
-	sendPacket(Frames& packet);
+	sendPacket(Packet& packet);
 
 	static bool
-	getPacket(Frames& packet);
+	getPacket(Packet& packet);
+
+	static Feedback
+	getFeedback()
+	{ return Feedback::DontKnow; }
 
 	static bool
 	isAssociated()
@@ -271,7 +276,7 @@ private:
 
 private:
 	// TODO: replace by finer grained clock, xpcc::Clock is 1ms ticks by default
-	using MicroSecondsClock = xpcc::Clock;
+	using MicroSecondsClock = typename Nrf24Data::ClockLower;
 	using PeriodicTimerUs = xpcc::GenericPeriodicTimer<MicroSecondsClock>;
 	using TimeoutUs = xpcc::GenericTimeout<MicroSecondsClock>;
 	using NodeTimerList = std::array<TimeoutUs, Parameters::maxMembers>;
@@ -302,6 +307,14 @@ private:
 		Member
 	};
 
+	static const char*
+	toStr(Role role) {
+		switch(role) {
+		case Role::Coordinator:	return "Coordinator";
+		case Role::Member:		return "Member";
+		case Role::None:		return "None"; }
+	}
+
 	class RoleSelectionActivity : private xpcc::Resumable<1>
 	{
 	public:
@@ -325,6 +338,19 @@ private:
 			TryBecomingCoordinator,
 			BecomeCoordinator,
 		};
+
+
+		static const char*
+		toStr(Activity activity) {
+			switch(activity) {
+			case Activity::Init:						return "Init";
+			case Activity::ListenForBeacon:				return "ListenForBeacon";
+			case Activity::BecomeMember:				return "BecomeMember";
+			case Activity::CheckBecomingCoordinator:	return "CheckBecomingCoordinator";
+			case Activity::TryBecomingCoordinator:		return "TryBecomingCoordinator";
+			case Activity::BecomeCoordinator:			return "BecomeCoordinator";
+			}
+		}
 
 		Activity activity;
 		TimeoutUs timeoutUs;
@@ -354,6 +380,18 @@ private:
 			UpdateNodeList,
 			LeaveCoordinatorRole,
 		};
+
+		static const char*
+		toStr(Activity activity) {
+			switch(activity) {
+			case Activity::Init:					return "Init";
+			case Activity::SendBeacon:				return "SendBeacon";
+			case Activity::ListenForRequests:		return "ListenForRequests";
+			case Activity::SendData:				return "SendData";
+			case Activity::ReceiveData:				return "ReceiveData";
+			case Activity::UpdateNodeList:			return "UpdateNodeList";
+			case Activity::LeaveCoordinatorRole:	return "LeaveCoordinatorRole"; }
+		}
 
 		Activity activity;
 		TimeoutUs timeoutUs;
@@ -385,6 +423,19 @@ private:
 			OwnSlot,
 			LeaveNetwork,
 		};
+
+		static const char*
+		toStr(Activity activity) {
+			switch(activity) {
+			case Activity::Init:				return "Init";
+			case Activity::ReceiveBeacon:		return "ReceiveBeacon";
+			case Activity::CheckAssociation:	return "CheckAssociation";
+			case Activity::Associate:			return "Associate";
+			case Activity::WaitForDataSlots:	return "WaitForDataSlots";
+			case Activity::ReceiveData:			return "ReceiveData";
+			case Activity::OwnSlot:				return "OwnSlot";
+			case Activity::LeaveNetwork:		return "LeaveNetwork"; }
+		}
 
 		Activity activity;
 		TimeoutUs timeoutUs;

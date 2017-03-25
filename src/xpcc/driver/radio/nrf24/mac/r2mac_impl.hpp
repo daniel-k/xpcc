@@ -13,6 +13,7 @@
 
 #include <stdlib.h>
 #include <xpcc/processing.hpp>
+#include <xpcc/debug/logger/style.hpp>
 #include "r2mac.hpp"
 
 template<typename Nrf24Data, class Parameters>
@@ -82,6 +83,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setSpeed(Parameters::dataRate);
 	Config::setAddressWidth(Parameters::addressWidth);
 	Config::setCrc(Parameters::crcBytes);
+	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Retransmit1);
 
 	// TODO: we still need some entropy/seed for the PRNG later
 }
@@ -100,6 +102,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 	Nrf24Data::update();
 	handlePackets();
 
+	static xpcc::PeriodicTimer rateLimiter(200);
+
+	if(rateLimiter.execute()) {
+		R2MAC_LOG_INFO << "My role: "
+		               << toStr(role) << xpcc::endl;
+	}
+
 	switch(role) {
 	case Role::None:
 		roleSelectionActivity.update();
@@ -114,14 +123,17 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 
 template<typename Nrf24Data, class Parameters>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::sendPacket(Frames& packet)
+xpcc::R2MAC<Nrf24Data, Parameters>::sendPacket(Packet& packet)
 {
-	return dataTXQueue.append(packet);
+	packet.setType(Packet::Type::Data);
+
+	const auto packetNrfData = reinterpret_cast<Nrf24DataPacket*>(&packet);
+	return dataTXQueue.append(*packetNrfData);
 }
 
 template<typename Nrf24Data, class Parameters>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Frames& packet)
+xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Packet& packet)
 {
 	if(dataRXQueue.isEmpty())
 		return false;
@@ -165,21 +177,24 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 		const typename Packet::Type packetType = packet->getType();
 
 		// filter packet by its destination address
-		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
-		    (packet->getDestination() != Nrf24Data::getAddress())) {
+//		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
+//		    (packet->getDestination() != Nrf24Data::getAddress())) {
 
-			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
-			               << " frame from 0x" << xpcc::hex << packet->getSource()
-			               << xpcc::ascii << " with 0x" << xpcc::hex
-			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
+//			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
+//			               << " frame from 0x" << xpcc::hex << packet->getSource()
+//			               << xpcc::ascii << " with 0x" << xpcc::hex
+//			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
 
-			// consider data packets as association requests if we're a
-			// coordinator to reset lease timeouts
-			// TODO: evaluate if this is needed
-			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
-				associationQueue.append(packet->getSource());
-			}
-		} else {
+//			// consider data packets as association requests if we're a
+//			// coordinator to reset lease timeouts
+//			// TODO: evaluate if this is needed
+//			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
+//				associationQueue.append(packet->getSource());
+//			}
+//		} else {
+
+		    R2MAC_LOG_INFO << "received a packet!" << xpcc::endl;
+
 			// parse incoming packet
 			switch(packetType) {
 			case Packet::Type::Beacon: {
@@ -219,7 +234,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 			case Packet::Type::None:
 				break;
 			}
-		}
+//		}
 
 		return packetType;
 	}
