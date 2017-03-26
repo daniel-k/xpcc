@@ -62,7 +62,6 @@ typename xpcc::R2MAC<Nrf24Data, Parameters>::BeaconQueue
 xpcc::R2MAC<Nrf24Data, Parameters>::beaconQueue;
 
 
-
 template<typename Nrf24Data, class Parameters>
 void
 xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddress address)
@@ -85,7 +84,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setCrc(Parameters::crcBytes);
 	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Disable);
 
-	// TODO: we still need some entropy/seed for the PRNG later
+	srand(network);
 }
 
 template<typename Nrf24Data, class Parameters>
@@ -201,7 +200,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
 		    (packet->getDestination() != Nrf24Data::getAddress())) {
 
-			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName() << "("
+			R2MAC_LOG_INFO << "Overheard " << Packet::toStr(packetType) << "("
 			               << static_cast<uint8_t>(packetType) << ")"
 			               << " frame from 0x" << xpcc::hex << packet->getSource()
 			               << xpcc::ascii << " with 0x" << xpcc::hex

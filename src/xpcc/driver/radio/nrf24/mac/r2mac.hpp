@@ -96,13 +96,6 @@ struct R2MACDefaultParameters
 
 	/// Length of the transmit data queue
 	static constexpr int sendDataQueueSize = 32;
-
-	/// Length of the association queue
-	static constexpr int associationQueueSize = associationSlots;
-
-	/// Length of the beacon queue (by initial design equal to 1)
-	static constexpr int beaconQueueSize = 1;
-
 };
 
 /**
@@ -110,29 +103,22 @@ struct R2MACDefaultParameters
  *
  * @ingroup	nrf24
  * @author	Daniel Krebs
+ * @author  Tomasz Chyrowicz
  */
 template<typename Nrf24Data, class Parameters = R2MACDefaultParameters>
 class R2MAC : private xpcc::Resumable<1>
 {
 public:
+	using Feedback = typename Nrf24Data::SendingFeedback;
 	using NetworkAddress = typename Nrf24Data::BaseAddress;
 	using NodeAddress = typename Nrf24Data::Address;
 	using NodeList = std::array<NodeAddress, Parameters::maxMembers>;
-
-	// convenience typedef
-	using Config = typename Nrf24Data::Config;
-	using Nrf24DataPacket = typename Nrf24Data::Packet;
-	using Feedback = typename Nrf24Data::SendingFeedback;
-
-	static constexpr uint8_t
-	getPayloadLength()
-	{ return Parameters::payloadLength; }
-
 
 	class xpcc_packed Packet
 	{
 		// R2MAC needs to access private interfaces
 		friend R2MAC;
+
 
 	// ------ Types ------
 	public:
@@ -148,12 +134,11 @@ public:
 		static const char*
 		toStr(Type type) {
 			switch(type) {
-			case Type::Beacon: return "Beacon";
-			case Type::AssociationRequest: return "AssociationRequest";
-			case Type::Data: return "Data";
-			case Type::None: return "None";
-			default: return "Invalid";
-			}
+			case Type::Beacon:				return "Beacon";
+			case Type::AssociationRequest:	return "AssociationRequest";
+			case Type::Data:				return "Data";
+			case Type::None:				return "None";
+			default:						return "Invalid"; }
 		}
 
 	private:
@@ -161,6 +146,7 @@ public:
 		{
 			Type type;
 		};
+
 		using HeaderBelow = typename Nrf24Data::Header;
 
 
@@ -173,6 +159,7 @@ public:
 	public:
 		/// User will put data here
 		uint8_t	payload[Nrf24Data::Packet::getPayloadLength() - sizeof(Header)];
+
 
 	// ------ Functions ------
 	public:
@@ -196,52 +183,19 @@ public:
 		xpcc_always_inline Type
 		getType()
 		{ return header.type; }
-
-		const char*
-		getTypeName() {
-			switch(getType()) {
-			case Type::Beacon:				return "Beacon";
-			case Type::AssociationRequest:	return "AssociationRequest";
-			case Type::Data:				return "Data";
-			default:						return "invalid"; }
-		}
 	};
-
-	static constexpr uint8_t
-	getFrameOverhead()
-	{ return Nrf24Data::getFrameOverhead() + sizeof(typename Packet::Header); }
-
-
-private:
-	class Frames
-	{
-	public:
-		struct xpcc_packed Beacon {
-			uint8_t memberCount;
-			uint8_t members[Parameters::maxMembers];
-		};
-
-		// AssociationRequest currently has no payload, hence no definition here
-
-		struct xpcc_packed Data {
-			uint8_t payload[getPayloadLength()];
-		};
-	};
-
-	using DataRXQueue = xpcc::BoundedDeque<Packet, Parameters::receivedDataQueueSize>;
-	using BeaconQueue = xpcc::BoundedDeque<Packet, Parameters::beaconQueueSize>;
-	using DataTXQueue = xpcc::BoundedDeque<Nrf24DataPacket, Parameters::sendDataQueueSize>;
-	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, Parameters::associationQueueSize>;
 
 public:
+	/// Initialization of R2MAC, has to be called prior to usage
 	static void
 	initialize(NetworkAddress network, NodeAddress address);
 
-	static NodeAddress
-	getAddress();
-
+	/// Call as often as possible
 	static void
 	update();
+
+	static NodeAddress
+	getAddress();
 
 	static uint8_t
 	getNeighbourList(NodeList& nodeList);
@@ -256,11 +210,21 @@ public:
 	getFeedback()
 	{ return Feedback::DontKnow; }
 
-	static bool
+	static xpcc_always_inline bool
 	isAssociated()
 	{ return ((ownDataSlot != 0) or (role == Role::Coordinator)); }
 
+	static constexpr uint8_t
+	getFrameOverhead()
+	{ return Nrf24Data::getFrameOverhead() + sizeof(typename Packet::Header); }
+
+	static constexpr uint8_t
+	getPayloadLength()
+	{ return Parameters::payloadLength; }
+
 private:
+	using Config = typename Nrf24Data::Config;
+	using Nrf24DataPacket = typename Nrf24Data::Packet;
 
 	static constexpr uint32_t
 	getSuperFrameDurationUs(uint8_t memberCount) {
@@ -306,7 +270,35 @@ private:
 	static constexpr uint32_t timeDataSlotUs = timeTransmissionUs + timeGuardUs;
 
 	/// Worst case duration of a super frame, assuming a fully populated network
-	static constexpr uint32_t timeMaxSuperFrameUs = getSuperFrameDurationUs(Parameters::maxMembers);
+	static constexpr uint32_t timeMaxSuperFrameUs =
+	        getSuperFrameDurationUs(Parameters::maxMembers);
+
+	/// Length of the association queue
+	static constexpr int associationQueueSize = Parameters::associationSlots;
+
+	/// Length of the beacon queue (by initial design equal to 1)
+	static constexpr int beaconQueueSize = 1;
+
+private:
+	class Frames
+	{
+	public:
+		struct xpcc_packed Beacon {
+			uint8_t memberCount;
+			uint8_t members[Parameters::maxMembers];
+		};
+
+		// AssociationRequest currently has no payload, hence no definition here
+
+		struct xpcc_packed Data {
+			uint8_t payload[getPayloadLength()];
+		};
+	};
+
+	using DataRXQueue = xpcc::BoundedDeque<Packet, Parameters::receivedDataQueueSize>;
+	using DataTXQueue = xpcc::BoundedDeque<Nrf24DataPacket, Parameters::sendDataQueueSize>;
+	using BeaconQueue = xpcc::BoundedDeque<Packet, beaconQueueSize>;
+	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, associationQueueSize>;
 
 private:
 	using MicroSecondsClock = typename Nrf24Data::ClockLower;
