@@ -193,7 +193,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
 		    (packet->getDestination() != Nrf24Data::getAddress())) {
 
-			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
+			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName() << "("
+			               << static_cast<uint8_t>(packetType) << ")"
 			               << " frame from 0x" << xpcc::hex << packet->getSource()
 			               << xpcc::ascii << " with 0x" << xpcc::hex
 			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
@@ -204,6 +205,9 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
 				associationQueue.append(packet->getSource());
 			}
+
+			Nrf24Data::Phy::dumpRegisters();
+
 		} else {
 
 			R2MAC_LOG_INFO << "received a " << Packet::toStr(packetType) << " packet!" << xpcc::endl;
@@ -222,6 +226,14 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 
 				// remember time of beacon and append
 				timeLastBeacon = packetTimestamp;
+
+				if(beaconQueue.isFull()) {
+					R2MAC_LOG_ERROR << COLOR_RED << "Beacon queue is full!"
+					                << COLOR_END << xpcc::endl;
+
+					beaconQueue.removeFront();
+				}
+
 				beaconQueue.append(*packet);
 
 				break;

@@ -19,7 +19,7 @@
 
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::DEBUG
+#define XPCC_LOG_LEVEL xpcc::log::WARNING
 
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity
@@ -69,6 +69,9 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
+
+			RF_WAIT_UNTIL(Nrf24Data::isReadyToSend());
+
 			{
 				Nrf24DataPacket packetNrf24Data;
 				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
@@ -82,7 +85,9 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 					beaconFrame->members[i] = memberList[i];
 				}
 
-				Nrf24Data::sendPacket(packetNrf24Data);
+				if(not Nrf24Data::sendPacket(packetNrf24Data)) {
+					R2MAC_LOG_ERROR << "Unable to send beacon" << xpcc::endl;
+				}
 			}
 
 			// blocking wait until packet is really sent
@@ -148,12 +153,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 					if(MicroSecondsClock::now() < targetTimestamp) {
 
-						Nrf24Data::sendPacket(dataTXQueue.getFront());
-						dataTXQueue.removeFront();
+						if(Nrf24Data::isReadyToSend() and Nrf24Data::sendPacket(dataTXQueue.getFront())) {
+							dataTXQueue.removeFront();
 
-						while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
-							Nrf24Data::update();
-							RF_YIELD();
+							while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+								Nrf24Data::update();
+								RF_YIELD();
+							}
 						}
 					}
 				}

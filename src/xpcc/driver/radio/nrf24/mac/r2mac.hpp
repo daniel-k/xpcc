@@ -20,7 +20,7 @@
 #include <xpcc/driver/radio/nrf24/nrf24_data.hpp>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::INFO
+#define XPCC_LOG_LEVEL xpcc::log::WARNING
 
 #define COLOR_RED        "\e[91m"
 #define COLOR_GREEN      "\e[92m"
@@ -53,19 +53,19 @@ struct R2MACDefaultParameters
 	static constexpr int payloadLength = 29;
 
 	/// Number of raw frames that fit into a data slot
-	static constexpr int framesPerDataSlot = 300;
+	static constexpr int framesPerDataSlot = 3;
 
 	/// Number of raw frames that fit into an association slot
-	static constexpr int framesPerAssociationSlot = 100;
+	static constexpr int framesPerAssociationSlot = 3;
 
 	/// Number of slots in association period
-	static constexpr int associationSlots = 4; // maybe depend on maxNodes?
+	static constexpr int associationSlots = maxMembers / 2 + 1;
 
 	/// Number of slots that a member will wait for a beacon frame
 	static constexpr int maxMissedBeacons = 4;
 
 	/// Node lease time
-	static constexpr uint32_t timeNodeLeaseUs = 1000 * 1000;
+	static constexpr uint32_t timeNodeLeaseUs = 100 * 1000;
 
 	/// Node update lease time (should be shorter than timeNodeLeaseUs)
 	static constexpr uint32_t timeNodeLeaseUpdateUs = timeNodeLeaseUs / 2;
@@ -95,13 +95,13 @@ struct R2MACDefaultParameters
 	static constexpr int receivedDataQueueSize = 3;
 
 	/// Length of the transmit data queue
-	static constexpr int sendDataQueueSize = 3;
+	static constexpr int sendDataQueueSize = 32;
 
 	/// Length of the association queue
 	static constexpr int associationQueueSize = associationSlots;
 
 	/// Length of the beacon queue (by initial design equal to 1)
-	static constexpr int beaconQueueSize = 5;
+	static constexpr int beaconQueueSize = 1;
 
 };
 
@@ -288,7 +288,7 @@ private:
 	static constexpr uint8_t timeSwitchUs = 130;
 
 	/// Guard interval at end of each slot
-	static constexpr uint16_t timeGuardUs = 40 * timeSwitchUs;
+	static constexpr uint16_t timeGuardUs = 4 * timeSwitchUs;
 
 	/// Duration of an association slot
 	static constexpr uint32_t timeAssociationSlotUs =

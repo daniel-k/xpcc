@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::DEBUG
+#define XPCC_LOG_LEVEL xpcc::log::INFO
 
 // -----------------------------------------------------------------------------
 
@@ -172,7 +172,6 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 		// determine the sending state
 		feedbackCurrentPacket.sendingFeedback = SendingFeedback::Busy;
 
-		XPCC_LOG_INFO << "[nrf24] Broadcast packet sent" << xpcc::endl;
 	} else {
 		// set pipe 0's address to Tx address to receive ACK packet
 		Phy::setRxAddress(Pipe::PIPE_0, destinationRawAddress);
@@ -301,6 +300,8 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 		// still busy
 		return false;
 	}
+
+	Config::disablePipe(Pipe::PIPE_0);
 
 	// provide sending feedback to user
 	feedbackLastPacket.sendingFeedback = feedbackCurrentPacket.sendingFeedback;

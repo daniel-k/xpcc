@@ -196,7 +196,7 @@ public:
 	 */
 	static void
 	disablePipe(Pipe_t pipe)
-	{ Nrf24Phy::clearBits(NrfRegister::EN_RX_ADDR, (1 << pipe.value)); }
+	{ Nrf24Phy::clearBits(NrfRegister::EN_RX_ADDR, Flags_t(1 << pipe.value)); }
 
 	/// Return number of pipe that has payload available
 	static Pipe_t

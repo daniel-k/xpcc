@@ -57,13 +57,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			while(not timeoutUs.isExpired()) {
 				if(not beaconQueue.isEmpty()) {
 					{
-						Packet& beaconPacket = beaconQueue.getFront();
+						Packet& beaconPacket = beaconQueue.getBack();
 						auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>
 						                            (beaconPacket.payload);
 
 						XPCC_LOG_INFO.printf("Found coordinator 0x%02x\n", beaconPacket.getSource());
 						updateNetworkInfo(beaconPacket.getSource(), *beaconFrame);
-						beaconQueue.removeFront();
+
+						// drop all beacons, we only use the most recent one
+						beaconQueue.clear();
 
 						// beaconPacket and beaconFrame are not valid anymore
 					}
@@ -96,11 +98,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			// Select a random association slot
 			associationSlot = randomRange(0, Parameters::associationSlots - 1);
 
-			R2MAC_LOG_INFO << "Waiting for " << associationSlot << " slots "
-			               << "to send association request" << xpcc::endl;
+//			R2MAC_LOG_INFO << "Waiting for " << associationSlot << " slots "
+//			               << "to send association request" << xpcc::endl;
 
 			targetTimestamp = timeLastBeacon +
 			        (timeAssociationSlotUs * associationSlot);
+
+			RF_WAIT_UNTIL(Nrf24Data::isReadyToSend());
 
 			while(MicroSecondsClock::now() < targetTimestamp) {
 				if(not beaconQueue.isEmpty()) {
@@ -110,6 +114,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				RF_YIELD();
 			}
 
+
 			{	// assemble and send association request
 				Nrf24DataPacket packetNrf24Data;
 				auto associationPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
@@ -117,7 +122,10 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				associationPacket->setDestination(coordinatorAddress);
 				associationPacket->setType(Packet::Type::AssociationRequest);
 
-				Nrf24Data::sendPacket(packetNrf24Data);
+				if(not Nrf24Data::sendPacket(packetNrf24Data)) {
+					R2MAC_LOG_ERROR << "Unable to send association request"
+					                << xpcc::endl;
+				}
 			}
 
 			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
@@ -195,12 +203,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				if (not dataTXQueue.isEmpty()) {
 					if(MicroSecondsClock::now() < targetTimestamp) {
 
-						Nrf24Data::sendPacket(dataTXQueue.getFront());
-						dataTXQueue.removeFront();
+						if(Nrf24Data::isReadyToSend() and Nrf24Data::sendPacket(dataTXQueue.getFront())) {
+							dataTXQueue.removeFront();
 
-						while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
-							Nrf24Data::update();
-							RF_YIELD();
+							while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+								Nrf24Data::update();
+								RF_YIELD();
+							}
+						} else {
+//							R2MAC_LOG_INFO << ""
 						}
 					}
 				}
