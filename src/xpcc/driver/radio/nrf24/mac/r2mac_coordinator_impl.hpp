@@ -58,26 +58,27 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
-			// just for debugging
-			for(static int i = 0; i < 1; i++) {
+
 			{
-					Nrf24DataPacket packetNrf24Data;
-					auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
-					auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
+				Nrf24DataPacket packetNrf24Data;
+				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
+				auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
 
-					beaconPacket->setDestination(Nrf24Data::getBroadcastAddress());
-					beaconPacket->setType(Packet::Type::Beacon);
+				beaconPacket->setDestination(Nrf24Data::getBroadcastAddress());
+				beaconPacket->setType(Packet::Type::Beacon);
 
-					beaconFrame->memberCount = memberCount;
-					for (uint8_t i = 0; i < memberCount; i++) {
-						beaconFrame->members[i] = memberList[i];
-					}
-
-					Nrf24Data::sendPacket(packetNrf24Data);
+				beaconFrame->memberCount = memberCount;
+				for (uint8_t i = 0; i < memberCount; i++) {
+					beaconFrame->members[i] = memberList[i];
 				}
-				RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
-				              Nrf24Data::SendingFeedback::Busy);
+
+				Nrf24Data::sendPacket(packetNrf24Data);
 			}
+			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
+			              Nrf24Data::SendingFeedback::Busy);
+
+			R2MAC_LOG_INFO << "beacon sent!" << xpcc::endl;
+
 
 			timeLastBeacon = MicroSecondsClock::now();
 

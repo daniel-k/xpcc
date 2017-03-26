@@ -49,7 +49,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 		DECLARE_ACTIVITY(Activity::ReceiveBeacon)
 		{
 			timeoutUs.restart(getSuperFrameDurationUs(memberCount) *
-			                                  Parameters::maxMissedBeacons * 100);
+			                                  Parameters::maxMissedBeacons * 10);
 
 			// Wait for Beacon frame
 			while(not timeoutUs.isExpired()) {

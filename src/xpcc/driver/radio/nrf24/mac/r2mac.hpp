@@ -56,7 +56,7 @@ struct R2MACDefaultParameters
 	static constexpr int framesPerDataSlot = 300;
 
 	/// Number of raw frames that fit into an association slot
-	static constexpr int framesPerAssociationSlot = 1;
+	static constexpr int framesPerAssociationSlot = 100;
 
 	/// Number of slots in association period
 	static constexpr int associationSlots = 4; // maybe depend on maxNodes?
@@ -288,7 +288,7 @@ private:
 	static constexpr uint8_t timeSwitchUs = 130;
 
 	/// Guard interval at end of each slot
-	static constexpr uint16_t timeGuardUs = 4 * timeSwitchUs;
+	static constexpr uint16_t timeGuardUs = 40 * timeSwitchUs;
 
 	/// Duration of an association slot
 	static constexpr uint32_t timeAssociationSlotUs =

@@ -17,7 +17,7 @@
 
 /// Gets called when a new activity has been called
 #define ACTIVITY_LOG_STATE_CHANGE(oldActivity, newActivity, ...) \
-	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << toStr(oldActivity) << " -> " << toStr(newActivity) << " ()" << xpcc::endl
+	    XPCC_LOG_INFO << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << toStr(oldActivity) << " -> " << toStr(newActivity) << " ()" << xpcc::endl
 
 
 /// Use at the beginning of an activity group
