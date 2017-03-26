@@ -78,7 +78,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 					beaconFrame->members[i] = memberList[i];
 				}
 
+
 				Nrf24Data::sendPacket(packetNrf24Data);
+
+				const auto rawPacket = reinterpret_cast<uint8_t*>(&packetNrf24Data);
+				XPCC_LOG_INFO << "raw beacon: ";
+				for(unsigned i = 0; i < sizeof(packetNrf24Data); i++) {
+					XPCC_LOG_INFO.printf("%02x ", rawPacket[i]);
+				}
+				XPCC_LOG_INFO << xpcc::endl;
 			}
 			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
 

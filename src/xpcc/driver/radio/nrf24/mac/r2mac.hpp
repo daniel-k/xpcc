@@ -287,15 +287,21 @@ private:
 	static constexpr uint32_t timeAssociationSlotUs =
 	        (Parameters::framesPerAssociationSlot * frameAirTimeUs) + timeGuardUs;
 
+	/// Duration of whole association period
+	static constexpr uint32_t timeAssociationPeriodUs =
+	        timeAssociationSlotUs * Parameters::associationSlots;
+
+	/// Time of a data slot when transmission is allowed
+	static constexpr uint32_t timeTransmissionUs =
+	        Parameters::framesPerDataSlot * frameAirTimeUs;
+
 	/// Duration of a data slot
-	static constexpr uint32_t timeDataSlotUs =
-	        (Parameters::framesPerDataSlot * frameAirTimeUs) + timeGuardUs;
+	static constexpr uint32_t timeDataSlotUs = timeTransmissionUs + timeGuardUs;
 
 	/// Worst case duration of a super frame, assuming a fully populated network
 	static constexpr uint32_t timeMaxSuperFrameUs = getSuperFrameDurationUs(Parameters::maxMembers);
 
 private:
-	// TODO: replace by finer grained clock, xpcc::Clock is 1ms ticks by default
 	using MicroSecondsClock = typename Nrf24Data::ClockLower;
 	using PeriodicTimerUs = xpcc::GenericPeriodicTimer<MicroSecondsClock>;
 	using TimeoutUs = xpcc::GenericTimeout<MicroSecondsClock>;
@@ -332,7 +338,8 @@ private:
 		switch(role) {
 		case Role::Coordinator:	return "Coordinator";
 		case Role::Member:		return "Member";
-		case Role::None:		return "None"; }
+		case Role::None:		return "None";
+		default:				return "Invalid"; }
 	}
 
 	class RoleSelectionActivity : private xpcc::Resumable<1>
@@ -369,7 +376,7 @@ private:
 			case Activity::CheckBecomingCoordinator:	return "CheckBecomingCoordinator";
 			case Activity::TryBecomingCoordinator:		return "TryBecomingCoordinator";
 			case Activity::BecomeCoordinator:			return "BecomeCoordinator";
-			}
+			default:									return "Invalid"; }
 		}
 
 		Activity activity;
@@ -410,7 +417,8 @@ private:
 			case Activity::SendData:				return "SendData";
 			case Activity::ReceiveData:				return "ReceiveData";
 			case Activity::UpdateNodeList:			return "UpdateNodeList";
-			case Activity::LeaveCoordinatorRole:	return "LeaveCoordinatorRole"; }
+			case Activity::LeaveCoordinatorRole:	return "LeaveCoordinatorRole";
+			default:								return "Invalid";  }
 		}
 
 		Activity activity;
@@ -429,6 +437,13 @@ private:
 
 		xpcc::ResumableResult<void>
 		update();
+
+		bool
+		inMySlot();
+
+		xpcc_always_inline xpcc::Timestamp
+		getStartOfOwnSlot()
+		{ return timeLastBeacon + timeAssociationPeriodUs + (ownDataSlot * timeDataSlotUs); }
 
 	private:
 		enum class
@@ -454,7 +469,8 @@ private:
 			case Activity::WaitForDataSlots:	return "WaitForDataSlots";
 			case Activity::ReceiveData:			return "ReceiveData";
 			case Activity::OwnSlot:				return "OwnSlot";
-			case Activity::LeaveNetwork:		return "LeaveNetwork"; }
+			case Activity::LeaveNetwork:		return "LeaveNetwork";
+			default:							return "Invalid"; }
 		}
 
 		Activity activity;
@@ -462,6 +478,8 @@ private:
 		TimeoutUs leaseTimeoutUs;
 		TimeoutUs ownSlotTimeoutUs;
 		int32_t associationSlot;
+		xpcc::Timestamp targetTimestamp;
+
 	};
 
 private:
