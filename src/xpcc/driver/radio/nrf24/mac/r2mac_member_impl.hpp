@@ -48,27 +48,31 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::ReceiveBeacon)
 		{
-			ownDataSlot = 0;
+			// we need to check our associate with every beacon
+			clearAssociation();
 
-			timeoutUs.restart(getSuperFrameDurationUs(memberCount) *
-			                                  Parameters::maxMissedBeacons * 10);
+			// maximum amount of time to wait for a beacon
+			timeoutUs.restart(getSuperFrameDurationUs(memberCount) * Parameters::maxMissedBeacons);
 
-			// Wait for Beacon frame
+			// wait for Beacon frame
 			while(not timeoutUs.isExpired()) {
 				if(not beaconQueue.isEmpty()) {
 					{
+						// get from the back of the queue, we only care about
+						// the most recently received beacon
 						Packet& beaconPacket = beaconQueue.getBack();
 						auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>
 						                            (beaconPacket.payload);
 
-						XPCC_LOG_INFO.printf("Found coordinator 0x%02x\n", beaconPacket.getSource());
-						updateNetworkInfo(beaconPacket.getSource(), *beaconFrame);
-
-						// drop all beacons, we only use the most recent one
-						beaconQueue.clear();
-
-						// beaconPacket and beaconFrame are not valid anymore
+						// parse beacon frame
+						coordinatorAddress = beaconPacket.getSource();
+						memberCount = beaconFrame->memberCount;
+						memcpy(&memberList, beaconFrame->members, memberCount);
+						ownDataSlot = getDataSlot(getAddress());
 					}
+
+					// drop all other beacons
+					beaconQueue.clear();
 
 					CALL_ACTIVITY(Activity::CheckAssociation);
 				}
@@ -95,53 +99,54 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::Associate)
 		{
-			// Select a random association slot
-			associationSlot = randomRange(0, Parameters::associationSlots - 1);
-
-//			R2MAC_LOG_INFO << "Waiting for " << associationSlot << " slots "
-//			               << "to send association request" << xpcc::endl;
-
-			targetTimestamp = timeLastBeacon +
-			        (timeAssociationSlotUs * associationSlot);
-
-			RF_WAIT_UNTIL(Nrf24Data::isReadyToSend());
-
-			while(MicroSecondsClock::now() < targetTimestamp) {
-				if(not beaconQueue.isEmpty()) {
-					CALL_ACTIVITY(Activity::ReceiveBeacon);
-				}
-
-				RF_YIELD();
-			}
-
-
-			{	// assemble and send association request
-				Nrf24DataPacket packetNrf24Data;
+			{	// prepare association request frame
 				auto associationPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
 
 				associationPacket->setDestination(coordinatorAddress);
 				associationPacket->setType(Packet::Type::AssociationRequest);
+			}
 
-				if(not Nrf24Data::sendPacket(packetNrf24Data)) {
+			// Select a random association slot
+			associationSlot = randomRange(0, Parameters::associationSlots - 1);
+
+			targetTimestamp = timeLastBeacon +
+			        (timeAssociationSlotUs * associationSlot);
+
+			// busy-wait for our slot (probably required for tight timing)
+			while( (MicroSecondsClock::now() < targetTimestamp) or
+			       (not Nrf24Data::isReadyToSend())) {
+
+				// update required for assessment of isReadyToSend()
+				Nrf24Data::update();
+			}
+
+			// check if the association request still fits into our slot
+			targetTimestamp = targetTimestamp +
+			                    (timeAssociationTransmissionUs - frameAirTimeUs);
+			if(MicroSecondsClock::now() < targetTimestamp ) {
+
+				if(Nrf24Data::sendPacket(packetNrf24Data)) {
+					// wait for the outcome of our association attempt, timing
+					// not so crucial anymore
+					RF_WAIT_UNTIL(Nrf24Data::isSendingDone());
+
+					switch(Nrf24Data::getFeedback().sendingFeedback) {
+					case Nrf24Data::SendingFeedback::FinishedAck:
+					case Nrf24Data::SendingFeedback::DontKnow:
+						// reset lease timeout if it was successful or we cannot know
+						leaseTimeoutUs.restart(Parameters::timeNodeLeaseUpdateUs);
+						break;
+					default:
+						// not resetting lease because renewal failed
+						break;
+					}
+				} else {
 					R2MAC_LOG_ERROR << "Unable to send association request"
 					                << xpcc::endl;
 				}
-			}
-
-			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
-				Nrf24Data::update();
-				RF_YIELD();
-			}
-
-			switch(Nrf24Data::getFeedback().sendingFeedback) {
-			case Nrf24Data::SendingFeedback::FinishedAck:
-			case Nrf24Data::SendingFeedback::DontKnow:
-				// reset lease timeout if it was successful or we cannot know
-				leaseTimeoutUs.restart(Parameters::timeNodeLeaseUpdateUs);
-				break;
-			default:
-				// not resetting lease because renewal failed
-				break;
+			} else {
+				R2MAC_LOG_ERROR << "We missed our association slot :("
+				                << xpcc::endl;
 			}
 
 			if(isAssociated()) {
@@ -196,7 +201,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			// the guard interval.
 			// Note: assumes frame transmission only lasts frameAirTimeUs, not
 			// considering switch time nor retransmissions yet
-			targetTimestamp = getStartOfOwnSlot() + timeTransmissionUs - frameAirTimeUs;
+			targetTimestamp = getStartOfOwnSlot() + timeDataTransmissionUs - frameAirTimeUs;
 
 			while(inMySlot()) {
 
@@ -211,7 +216,6 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 								RF_YIELD();
 							}
 						} else {
-//							R2MAC_LOG_INFO << ""
 						}
 					}
 				}
@@ -223,8 +227,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::LeaveNetwork)
 		{
-			ownDataSlot = 0;
-			// No beacons within timeout - go to the role selection
+			clearAssociation();
+
 			role = Role::None;
 			ACTIVITY_GROUP_EXIT(Activity::Init, true);
 		}

@@ -142,7 +142,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 			// the guard interval.
 			// Note: assumes frame transmission only lasts frameAirTimeUs, not
 			// considering switch time nor retransmissions yet
-			targetTimestamp = getStartOfOwnSlot() + timeTransmissionUs - frameAirTimeUs;
+			targetTimestamp = getStartOfOwnSlot() + timeDataTransmissionUs - frameAirTimeUs;
 
 			while(inMySlot()) {
 				if(not beaconQueue.isEmpty()) {

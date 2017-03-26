@@ -194,9 +194,6 @@ public:
 	static void
 	update();
 
-	static NodeAddress
-	getAddress();
-
 	static uint8_t
 	getNeighbourList(NodeList& nodeList);
 
@@ -206,9 +203,9 @@ public:
 	static bool
 	getPacket(Packet& packet);
 
-	static Feedback
-	getFeedback()
-	{ return Feedback::DontKnow; }
+	static xpcc_always_inline NodeAddress
+	getAddress()
+	{ return Nrf24Data::getAddress(); }
 
 	static xpcc_always_inline bool
 	isAssociated()
@@ -223,6 +220,7 @@ public:
 	{ return Parameters::payloadLength; }
 
 private:
+
 	using Config = typename Nrf24Data::Config;
 	using Nrf24DataPacket = typename Nrf24Data::Packet;
 
@@ -254,20 +252,25 @@ private:
 	/// Guard interval at end of each slot
 	static constexpr uint16_t timeGuardUs = 4 * timeSwitchUs;
 
+	/// Time of an association slot when transmission is allowed
+	static constexpr uint32_t timeAssociationTransmissionUs =
+	        Parameters::framesPerAssociationSlot * frameAirTimeUs;
+
 	/// Duration of an association slot
 	static constexpr uint32_t timeAssociationSlotUs =
-	        (Parameters::framesPerAssociationSlot * frameAirTimeUs) + timeGuardUs;
+	        timeAssociationTransmissionUs + timeGuardUs;
 
 	/// Duration of whole association period
 	static constexpr uint32_t timeAssociationPeriodUs =
 	        timeAssociationSlotUs * Parameters::associationSlots;
 
 	/// Time of a data slot when transmission is allowed
-	static constexpr uint32_t timeTransmissionUs =
+	static constexpr uint32_t timeDataTransmissionUs =
 	        Parameters::framesPerDataSlot * frameAirTimeUs;
 
 	/// Duration of a data slot
-	static constexpr uint32_t timeDataSlotUs = timeTransmissionUs + timeGuardUs;
+	static constexpr uint32_t timeDataSlotUs =
+	        timeDataTransmissionUs + timeGuardUs;
 
 	/// Worst case duration of a super frame, assuming a fully populated network
 	static constexpr uint32_t timeMaxSuperFrameUs =
@@ -315,19 +318,20 @@ private:
 	static typename Packet::Type
 	handlePackets(void);
 
-	/// Get a random value from (inclusive) interval [from, to]
-	static uint32_t
-	randomRange(uint32_t from, uint32_t to);
-
-	/// Adopt network information from beacon frame
-	static bool
-	updateNetworkInfo(NodeAddress coordinatorAddress, typename Frames::Beacon& beacon);
-
 	static bool
 	inMySlot();
 
+	static xpcc_always_inline void
+	clearAssociation()
+	{ ownDataSlot = 0; }
+
+	/// Get a random value from (inclusive) interval [from, to]
+	static xpcc_always_inline uint32_t
+	randomRange(uint32_t from, uint32_t to)
+	{ return (from + (rand() % (to - from + 1))); }
+
 	static xpcc_always_inline xpcc::Timestamp
-	    getStartOfOwnSlot()
+	getStartOfOwnSlot()
 	{ return timeLastBeacon + timeAssociationPeriodUs + (ownDataSlot * timeDataSlotUs); }
 
 private:
@@ -489,6 +493,8 @@ private:
 
 	static xpcc::Timestamp timeLastBeacon;
 	static xpcc::Timestamp timestamp;
+
+	static Nrf24DataPacket packetNrf24Data;
 
 	static DataRXQueue dataRXQueue;
 	static DataTXQueue dataTXQueue;

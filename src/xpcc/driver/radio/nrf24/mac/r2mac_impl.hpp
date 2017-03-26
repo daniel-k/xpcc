@@ -50,6 +50,10 @@ typename xpcc::R2MAC<Nrf24Data, Parameters>::DataRXQueue
 xpcc::R2MAC<Nrf24Data, Parameters>::dataRXQueue;
 
 template<typename Nrf24Data, class Parameters>
+typename xpcc::R2MAC<Nrf24Data, Parameters>::Nrf24DataPacket
+xpcc::R2MAC<Nrf24Data, Parameters>::packetNrf24Data;
+
+template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::DataTXQueue
 xpcc::R2MAC<Nrf24Data, Parameters>::dataTXQueue;
 
@@ -85,13 +89,6 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Disable);
 
 	srand(network);
-}
-
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::NodeAddress
-xpcc::R2MAC<Nrf24Data, Parameters>::getAddress()
-{
-	return Nrf24Data::getAddress();
 }
 
 template<typename Nrf24Data, class Parameters>
@@ -272,34 +269,4 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 	}
 
 	return Packet::Type::None;
-}
-
-template<typename Nrf24Data, class Parameters>
-uint32_t
-xpcc::R2MAC<Nrf24Data, Parameters>::randomRange(uint32_t from, uint32_t to)
-{
-	const uint32_t ret = from + (rand() % (to - from + 1));
-//	XPCC_LOG_DEBUG.printf("randRange(%u, %u) = %u\n", from, to, ret);
-	return ret;
-}
-
-
-template<typename Nrf24Data, class Parameters>
-bool
-xpcc::R2MAC<Nrf24Data, Parameters>::updateNetworkInfo(NodeAddress coordinatorAddr,
-                                                typename Frames::Beacon& beacon)
-{
-	NodeAddress myAddress = getAddress();
-	coordinatorAddress = coordinatorAddr;
-
-	memberCount = beacon.memberCount;
-	for(uint8_t i = 0; i < memberCount; i++) {
-		memberList[i] = static_cast<NodeAddress>(beacon.members[i]);
-
-		if(memberList[i] == myAddress) {
-			ownDataSlot = i + 1;
-		}
-	}
-
-	return true;
 }

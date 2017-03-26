@@ -187,11 +187,6 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 	// trigger transmission
 	Phy::pulseCe();
 
-//	while(not updateSendingState()) {
-//		// just wait
-//	}
-//	Config::setMode(Config::Mode::Rx);
-
 	sendingInterruptTimeout.restart(sendingInterruptTimeoutMs);
 
 	return true;

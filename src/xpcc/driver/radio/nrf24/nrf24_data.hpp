@@ -154,6 +154,10 @@ public:
 	static bool
 	isReadyToSend();
 
+	static xpcc_always_inline bool
+	isSendingDone()
+	{ return feedbackLastPacket.sendingFeedback != SendingFeedback::Busy; }
+
 	static bool
 	isPacketAvailable();
 
