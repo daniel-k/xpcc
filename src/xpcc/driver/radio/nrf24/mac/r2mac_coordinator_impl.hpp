@@ -57,12 +57,18 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				memberList[i] = 0;
 			}
 
+
+			R2MAC_LOG_DEBUG << "Data Slot duration: " << (timeDataSlotUs / 1000)
+			                << " ms" << xpcc::endl;
+			R2MAC_LOG_DEBUG << "Association Slot duration: "
+			                << (timeAssociationSlotUs / 1000) << " ms"
+			                << xpcc::endl;
+
 			CALL_ACTIVITY(Activity::SendBeacon);
 		}
 
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
-
 			{
 				Nrf24DataPacket packetNrf24Data;
 				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
@@ -79,34 +85,31 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				Nrf24Data::sendPacket(packetNrf24Data);
 			}
 
-//			Nrf24Data::Phy::dumpRegisters();
-
+			// blocking wait until packet is really sent
 			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+				// we have do update the driver here in order to switch back to
+				// RX mode as fast as possible
 				Nrf24Data::update();
-				RF_YIELD();
 			}
+
+			// Beacon has now been sent
 			timeLastBeacon = MicroSecondsClock::now();
 
-			R2MAC_LOG_INFO << "beacon sent!" << xpcc::endl;
-
-
-
 			{	// Debug output
-				R2MAC_LOG_DEBUG << "Member count: " << memberCount << xpcc::endl;
-				R2MAC_LOG_DEBUG << "members: ";
-				for(int i = 0; i < memberCount; i++) {
-					XPCC_LOG_DEBUG.printf("0x%02x ", memberList[i]);
-				}
-				XPCC_LOG_DEBUG << xpcc::endl;
+				const uint32_t superFrameDurationMs =
+				        (getSuperFrameDurationUs(memberCount) / 1000);
+				const uint32_t superFrameDurationDiffUs =
+				        getSuperFrameDurationUs(memberCount) - (superFrameDurationMs * 1000);
 
-				R2MAC_LOG_DEBUG << "Super Frame duration: "
-				                << (getSuperFrameDurationUs(memberCount) / 1000)
-				                << " ms" << xpcc::endl;
-				R2MAC_LOG_DEBUG << "Data Slot duration: " << (timeDataSlotUs / 1000)
-				                << " ms" << xpcc::endl;
-				R2MAC_LOG_DEBUG << "Association Slot duration: "
-				                << (timeAssociationSlotUs / 1000) << " ms"
-				                << xpcc::endl;
+				R2MAC_LOG_INFO << "Super Frame duration: ";
+				XPCC_LOG_INFO.printf("%u.%03u ms\n", superFrameDurationMs, superFrameDurationDiffUs);
+
+				R2MAC_LOG_INFO << "Member count: " << memberCount << xpcc::endl;
+				R2MAC_LOG_INFO << "members: ";
+				for(int i = 0; i < memberCount; i++) {
+					XPCC_LOG_INFO.printf("0x%02x ", memberList[i]);
+				}
+				XPCC_LOG_INFO << xpcc::endl;
 			}
 
 			CALL_ACTIVITY(Activity::ListenForRequests);

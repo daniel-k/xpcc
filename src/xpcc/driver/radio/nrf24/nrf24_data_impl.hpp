@@ -87,7 +87,9 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::initialize(BaseAddress base_address, Address o
 	Phy::flushRxFifo();
 	Phy::flushTxFifo();
 
-	// enable pipes for broadcast and own address, broadcast without auto ACK
+	// enable pipes for broadcast and own address
+	// enabling auto ACK seems to be needed for the broadcast pipe too, although
+	// broadcast packets will be sent with NO_ACK bit set
 	Config::enablePipe(Pipe::PIPE_1, true);
 	Config::enablePipe(Pipe::PIPE_2, true);
 
