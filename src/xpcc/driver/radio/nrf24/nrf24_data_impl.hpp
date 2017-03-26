@@ -150,7 +150,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 {
 	if(not isReadyToSend()) {
 		XPCC_LOG_WARNING << "[nrf24] Warning: Not ready to send, current state: "
-		                 << toStr(feedbackCurrentPacket.sendingFeedback) << xpcc::endl;
+		                 << toStr(feedbackLastPacket.sendingFeedback) << xpcc::endl;
 		return false;
 	}
 
@@ -170,7 +170,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 
 		// as frame was sent without requesting an acknowledgment we cannot
 		// determine the sending state
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::Busy;
+		feedbackLastPacket.sendingFeedback = SendingFeedback::Busy;
 
 	} else {
 		// set pipe 0's address to Tx address to receive ACK packet
@@ -181,7 +181,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 
 		// mark state as busy, so update() will switch back to Rx mode when
 		// state has changed
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::Busy;
+		feedbackLastPacket.sendingFeedback = SendingFeedback::Busy;
 	}
 
 	// trigger transmission
@@ -258,7 +258,7 @@ bool
 xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 {
 	// directly return if not busy, because nothing needs to be updated then
-	if(feedbackCurrentPacket.sendingFeedback != SendingFeedback::Busy) {
+	if(feedbackLastPacket.sendingFeedback != SendingFeedback::Busy) {
 		return true;
 	}
 
@@ -268,7 +268,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 	if(status & static_cast<uint8_t>(Status::TX_DS)) {
 		XPCC_LOG_DEBUG << "[nrf24] Interrupt: TX_DS" << xpcc::endl;
 
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::FinishedAck;
+		feedbackLastPacket.sendingFeedback = SendingFeedback::FinishedAck;
 
 		// acknowledge TX_DS interrupt
 		Phy::clearInterrupt(InterruptFlag::TX_DS);
@@ -278,7 +278,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 	} else if(status & static_cast<uint8_t>(Status::MAX_RT)) {
 		XPCC_LOG_DEBUG << "[nrf24] Interrupt: MAX_RT" << xpcc::endl;
 
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::FinishedNack;
+		feedbackLastPacket.sendingFeedback = SendingFeedback::FinishedNack;
 
 		// clear MAX_RT bit to enable further communication and flush Tx FIFO,
 		// because the failed packet still resides there
@@ -290,7 +290,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 	} else if(sendingInterruptTimeout.execute()) {
 		XPCC_LOG_ERROR << "[nrf24] IRQ timed out" << xpcc::endl;
 
-		feedbackCurrentPacket.sendingFeedback = SendingFeedback::DontKnow;
+		feedbackLastPacket.sendingFeedback = SendingFeedback::DontKnow;
 
 		// We should flush the Tx FIFO because we have no clue if the packet
 		// could be sent
@@ -301,10 +301,12 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::updateSendingState()
 		return false;
 	}
 
+	// transmission is done, so we disable pipe 0 again so we don't overhear any
+	// packets that are destined to that node (sent by others)
 	Config::disablePipe(Pipe::PIPE_0);
 
 	// provide sending feedback to user
-	feedbackLastPacket.sendingFeedback = feedbackCurrentPacket.sendingFeedback;
+	feedbackLastPacket.sendingFeedback = feedbackLastPacket.sendingFeedback;
 
 	return true;
 }
