@@ -88,7 +88,7 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::initialize(BaseAddress base_address, Address o
 	Phy::flushTxFifo();
 
 	// enable pipes for broadcast and own address, broadcast without auto ACK
-	Config::enablePipe(Pipe::PIPE_1, false);
+	Config::enablePipe(Pipe::PIPE_1, true);
 	Config::enablePipe(Pipe::PIPE_2, true);
 
 	// Configure some sensible defaults, may be changed later by user, but
@@ -170,12 +170,6 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 		// determine the sending state
 		feedbackCurrentPacket.sendingFeedback = SendingFeedback::Busy;
 
-
-		while(not updateSendingState()) {
-			// just wait
-		}
-		Config::setMode(Config::Mode::Rx);
-
 		XPCC_LOG_INFO << "[nrf24] Broadcast packet sent" << xpcc::endl;
 	} else {
 		// set pipe 0's address to Tx address to receive ACK packet
@@ -191,6 +185,11 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::sendPacket(Packet& packet)
 
 	// trigger transmission
 	Phy::pulseCe();
+
+//	while(not updateSendingState()) {
+//		// just wait
+//	}
+//	Config::setMode(Config::Mode::Rx);
 
 	sendingInterruptTimeout.restart(sendingInterruptTimeoutMs);
 

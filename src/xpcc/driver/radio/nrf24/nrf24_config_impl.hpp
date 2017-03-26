@@ -34,14 +34,16 @@ xpcc::Nrf24Config<Nrf24Phy>::setMode(Mode mode)
 	switch(mode) {
 	case Mode::Rx:
 		XPCC_LOG_DEBUG << "[nrf24] Set mode Rx" << xpcc::endl;
-		Nrf24Phy::resetCe();
-
+//		Nrf24Phy::resetCe();
+//		xpcc::delayMicroseconds(30);
 		Nrf24Phy::flushRxFifo();
 		Nrf24Phy::setBits(NrfRegister::CONFIG, Config::PRIM_RX);
 
 		break;
 	case Mode::Tx:
 		XPCC_LOG_DEBUG << "[nrf24] Set mode Tx" << xpcc::endl;
+
+		Nrf24Phy::flushTxFifo();
 		Nrf24Phy::clearBits(NrfRegister::CONFIG, Config::PRIM_RX);
 
 		// pulsing CE seems to be necessary to enter TX mode

@@ -48,6 +48,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::ReceiveBeacon)
 		{
+			ownDataSlot = 0;
+
 			timeoutUs.restart(getSuperFrameDurationUs(memberCount) *
 			                                  Parameters::maxMissedBeacons * 10);
 
@@ -118,7 +120,10 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				Nrf24Data::sendPacket(packetNrf24Data);
 			}
 
-			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
+			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+				Nrf24Data::update();
+				RF_YIELD();
+			}
 
 			switch(Nrf24Data::getFeedback().sendingFeedback) {
 			case Nrf24Data::SendingFeedback::FinishedAck:
@@ -193,8 +198,10 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
 
-						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
-						              Nrf24Data::SendingFeedback::Busy);
+						while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+							Nrf24Data::update();
+							RF_YIELD();
+						}
 					}
 				}
 				RF_YIELD();

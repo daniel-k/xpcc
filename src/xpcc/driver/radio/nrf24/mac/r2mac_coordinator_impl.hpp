@@ -17,6 +17,10 @@
 #undef ACTIVITY_LOG_NAME
 #define ACTIVITY_LOG_NAME "coordinator"
 
+
+#undef  XPCC_LOG_LEVEL
+#define XPCC_LOG_LEVEL xpcc::log::DEBUG
+
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::coordinatorActivity;
@@ -74,13 +78,18 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 				Nrf24Data::sendPacket(packetNrf24Data);
 			}
-			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
-			              Nrf24Data::SendingFeedback::Busy);
+
+//			Nrf24Data::Phy::dumpRegisters();
+
+			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+				Nrf24Data::update();
+				RF_YIELD();
+			}
+			timeLastBeacon = MicroSecondsClock::now();
 
 			R2MAC_LOG_INFO << "beacon sent!" << xpcc::endl;
 
 
-			timeLastBeacon = MicroSecondsClock::now();
 
 			{	// Debug output
 				R2MAC_LOG_DEBUG << "Member count: " << memberCount << xpcc::endl;
@@ -139,8 +148,10 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
 
-						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
-						              Nrf24Data::SendingFeedback::Busy);
+						while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
+							Nrf24Data::update();
+							RF_YIELD();
+						}
 					}
 				}
 
