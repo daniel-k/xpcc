@@ -30,24 +30,12 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::initialize()
 }
 
 template<typename Nrf24Data, class Parameters>
-bool
-xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::inMySlot()
-{
-	const xpcc::Timestamp endOwnSlotTimestamp = getStartOfOwnSlot() +
-	        timeDataSlotUs;
-
-	const xpcc::Timestamp now = MicroSecondsClock::now();
-
-	return (getStartOfOwnSlot() < now) and (now < endOwnSlotTimestamp);
-}
-
-template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
 xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << GREEN << "Activity: " << toStr(activity) << END << xpcc::endl;
+		R2MAC_LOG_INFO << COLOR_GREEN << "Activity: " << toStr(activity) << COLOR_END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
@@ -61,10 +49,10 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 		DECLARE_ACTIVITY(Activity::ReceiveBeacon)
 		{
 			timeoutUs.restart(getSuperFrameDurationUs(memberCount) *
-			                                  Parameters::maxMissedBeacons);
+			                                  Parameters::maxMissedBeacons * 100);
 
 			// Wait for Beacon frame
-			while(not timeoutUs.execute()) {
+			while(not timeoutUs.isExpired()) {
 				if(not beaconQueue.isEmpty()) {
 					{
 						Packet& beaconPacket = beaconQueue.getFront();
@@ -205,7 +193,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
 
-						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
+						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
+						              Nrf24Data::SendingFeedback::Busy);
 					}
 				}
 				RF_YIELD();

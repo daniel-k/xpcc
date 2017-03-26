@@ -35,94 +35,83 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << YELLOW << "Activity: " << toStr(activity) << END << xpcc::endl;
+		R2MAC_LOG_INFO << COLOR_YELLOW << "Activity: " << toStr(activity) << COLOR_END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
 	{
 		DECLARE_ACTIVITY(Activity::Init)
 		{
-			uint8_t i;
-
-			// Reset global variables
-			ownDataSlot = 0;
+			ownDataSlot = 0;	// by convention
 			memberCount = 0;
 			coordinatorAddress = getAddress();
+			associationQueue.clear();
 
-			for(i = 0; i < Parameters::maxMembers; i++){
-				// Stop timeout timers
+			// Reset member list and lease timers
+			for(uint8_t i = 0; i < Parameters::maxMembers; i++) {
 				memberLeaseTimeouts[i].stop();
-
-				// Reset node list
 				memberList[i] = 0;
 			}
-
-			// Clear association requests from the past
-			associationQueue.clear();
 
 			CALL_ACTIVITY(Activity::SendBeacon);
 		}
 
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
+			// just for debugging
+			for(static int i = 0; i < 1; i++) {
 			{
-				Nrf24DataPacket packetNrf24Data;
-				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
-				auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
+					Nrf24DataPacket packetNrf24Data;
+					auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
+					auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
 
-				beaconPacket->setDestination(Nrf24Data::getBroadcastAddress());
-				beaconPacket->setType(Packet::Type::Beacon);
+					beaconPacket->setDestination(Nrf24Data::getBroadcastAddress());
+					beaconPacket->setType(Packet::Type::Beacon);
 
-				beaconFrame->memberCount = memberCount;
-				for (uint8_t i = 0; i < memberCount; i++) {
-					beaconFrame->members[i] = memberList[i];
+					beaconFrame->memberCount = memberCount;
+					for (uint8_t i = 0; i < memberCount; i++) {
+						beaconFrame->members[i] = memberList[i];
+					}
+
+					Nrf24Data::sendPacket(packetNrf24Data);
 				}
+				RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
+				              Nrf24Data::SendingFeedback::Busy);
+			}
 
+			timeLastBeacon = MicroSecondsClock::now();
 
-				Nrf24Data::sendPacket(packetNrf24Data);
-
-				const auto rawPacket = reinterpret_cast<uint8_t*>(&packetNrf24Data);
-				XPCC_LOG_INFO << "raw beacon: ";
-				for(unsigned i = 0; i < sizeof(packetNrf24Data); i++) {
-					XPCC_LOG_INFO.printf("%02x ", rawPacket[i]);
+			{	// Debug output
+				R2MAC_LOG_DEBUG << "Member count: " << memberCount << xpcc::endl;
+				R2MAC_LOG_DEBUG << "members: ";
+				for(int i = 0; i < memberCount; i++) {
+					XPCC_LOG_DEBUG.printf("0x%02x ", memberList[i]);
 				}
-				XPCC_LOG_INFO << xpcc::endl;
+				XPCC_LOG_DEBUG << xpcc::endl;
+
+				R2MAC_LOG_DEBUG << "Super Frame duration: "
+				                << (getSuperFrameDurationUs(memberCount) / 1000)
+				                << " ms" << xpcc::endl;
+				R2MAC_LOG_DEBUG << "Data Slot duration: " << (timeDataSlotUs / 1000)
+				                << " ms" << xpcc::endl;
+				R2MAC_LOG_DEBUG << "Association Slot duration: "
+				                << (timeAssociationSlotUs / 1000) << " ms"
+				                << xpcc::endl;
 			}
-			RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
-
-
-			R2MAC_LOG_INFO << "Member count: " << memberCount << xpcc::endl;
-
-
-			R2MAC_LOG_INFO << "members: ";
-			for(int i = 0; i < memberCount; i++) {
-				XPCC_LOG_INFO.printf("0x%02x ", memberList[i]);
-			}
-			XPCC_LOG_INFO << xpcc::endl;
-
-//			R2MAC_LOG_INFO << "Super Frame duration: "
-//			               << (getSuperFrameDurationUs(memberCount) / 1000)
-//			               << " ms" << xpcc::endl;
-//			R2MAC_LOG_INFO << "Data Slot duration: " << (timeDataSlotUs / 1000)
-//			               << " ms" << xpcc::endl;
-//			R2MAC_LOG_INFO << "Association Slot duration: "
-//			               << (timeAssociationSlotUs / 1000) << " ms"
-//			               << xpcc::endl;
 
 			CALL_ACTIVITY(Activity::ListenForRequests);
 		}
 
 		DECLARE_ACTIVITY(Activity::ListenForRequests)
 		{
-			timeoutUs.restart(timeAssociationSlotUs * Parameters::associationSlots);
+			targetTimestamp = timeLastBeacon + timeAssociationPeriodUs;
 
 			// Wait for association requests. Note: All Nrf24 packets are parsed
-			//  (and pushed on a proper queue) inside .update() function.
-			while(not timeoutUs.execute()) {
+			//  (and pushed on a proper queue) inside the update() function.
+			while(MicroSecondsClock::now() < targetTimestamp) {
 				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
-
 				RF_YIELD();
 			}
 
@@ -131,39 +120,42 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::SendData)
 		{
-			timeoutUs.restart(timeDataSlotUs - timeGuardUs);
+			// Time when a packet ca be transmitted the latest to not violate
+			// the guard interval.
+			// Note: assumes frame transmission only lasts frameAirTimeUs, not
+			// considering switch time nor retransmissions yet
+			targetTimestamp = getStartOfOwnSlot() + timeTransmissionUs - frameAirTimeUs;
 
-			while(not timeoutUs.isExpired()) {
+			while(inMySlot()) {
 				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
 
 				if(not dataTXQueue.isEmpty()) {
-					// TODO: Retransmissions not included in time calculation.
 
-					if (timeoutUs.remaining() > (2 * frameAirTimeUs)) {
-						// Send and remove packet from TX queue
+					if(MicroSecondsClock::now() < targetTimestamp) {
+
 						Nrf24Data::sendPacket(dataTXQueue.getFront());
 						dataTXQueue.removeFront();
-						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback != Nrf24Data::SendingFeedback::Busy);
-					} else {
-						// not enough time to send packet anymore
+
+						RF_WAIT_UNTIL(Nrf24Data::getFeedback().sendingFeedback !=
+						              Nrf24Data::SendingFeedback::Busy);
 					}
 				}
 
 				RF_YIELD();
 			}
 
-			// Skip to the members data slots
 			CALL_ACTIVITY(Activity::ReceiveData);
 		}
 
 		DECLARE_ACTIVITY(Activity::ReceiveData)
 		{
-			// Wait for data transmissions.
-			timeoutUs.restart(timeDataSlotUs * memberCount);
+			// End of Super Frame
+			targetTimestamp = timeLastBeacon + getSuperFrameDurationUs(memberCount);
 
-			while(not timeoutUs.execute()) {
+			while(MicroSecondsClock::now() < targetTimestamp) {
+
 				if(not beaconQueue.isEmpty()) {
 					CALL_ACTIVITY(Activity::LeaveCoordinatorRole);
 				}
@@ -176,46 +168,43 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 
 		DECLARE_ACTIVITY(Activity::UpdateNodeList)
 		{
-
-			R2MAC_LOG_INFO << "Update Node List" << xpcc::endl;
-
 			while(not associationQueue.isEmpty()) {
-
-				R2MAC_LOG_INFO << "there's an association request" << xpcc::endl;
-
 				NodeAddress newMemberAddress = associationQueue.getFront();
 				associationQueue.removeFront();
 
-				// Check if already associated
 				const uint8_t slotNumber = getDataSlot(newMemberAddress);
+				const bool alreadyAssociated = (slotNumber == 0);
 
-				if(slotNumber == 0) {
+				if(alreadyAssociated) {
 					// Create new node entry and its timeout
 					if (memberCount < Parameters::maxMembers) {
 						memberList[memberCount] = newMemberAddress;
 						memberLeaseTimeouts[memberCount].restart(Parameters::timeNodeLeaseUs);
 						memberCount++;
 
-						R2MAC_LOG_INFO << "Register new member node: 0x" << xpcc::hex
-						               << newMemberAddress << xpcc::ascii << xpcc::endl;
+						R2MAC_LOG_INFO << "Register new member node: 0x"
+						               << xpcc::hex << newMemberAddress
+						               << xpcc::ascii << xpcc::endl;
 					} else {
-						R2MAC_LOG_ERROR << "Unable to associate new member: 0x" << xpcc::hex
-						               << newMemberAddress << xpcc::ascii
-									   << ". Reached maximum amount of members." << xpcc::endl;
+						R2MAC_LOG_ERROR << "Unable to register new member: 0x"
+						                << xpcc::hex << newMemberAddress
+						                << xpcc::ascii << ". Reached maximum "
+						                << "amount of members." << xpcc::endl;
 					}
 				} else {
-					// Update lease timeout
+					R2MAC_LOG_INFO << "Reset lease timer for the existing member: 0x"
+					               << xpcc::hex << newMemberAddress << xpcc::ascii
+					               << xpcc::endl;
+
 					const uint8_t index = slotNumber - 1;
 					memberLeaseTimeouts[index].restart(Parameters::timeNodeLeaseUs);
-					R2MAC_LOG_INFO << "Reset lease timer for the existing node: 0x" << xpcc::hex
-					               << newMemberAddress << xpcc::ascii << xpcc::endl;
-
 				}
 			}
 
 			// Check timers whether executed (node lease time)
-			// Scan backwards, because when you relocate expired timer with the last timer in a list
-			// you have to know whether relocated timer has expired (no double check after reassigning).
+			// Scan backwards, because when you relocate expired timer with the
+			// last timer in a list you have to know whether relocated timer has
+			// expired (no double check after reassigning).
 			for (int8_t expiredNodeIndex = memberCount - 1; expiredNodeIndex >= 0; expiredNodeIndex--) {
 				if (memberLeaseTimeouts[expiredNodeIndex].isExpired()) {
 					const uint8_t lastNodeIndex = memberCount - 1;
@@ -227,7 +216,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 						// relocate last lease timeout
 						memberLeaseTimeouts[expiredNodeIndex] = memberLeaseTimeouts[lastNodeIndex];
 
-						// Switch node address inside node list between last and expired node
+						// Switch node address inside node list between last and
+						// expired node
 						memberList[expiredNodeIndex] = memberList[lastNodeIndex];
 					}
 				}

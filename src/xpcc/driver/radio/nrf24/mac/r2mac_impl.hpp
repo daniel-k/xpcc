@@ -167,6 +167,18 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getDataSlot(NodeAddress nodeAddress)
 }
 
 template<typename Nrf24Data, class Parameters>
+bool
+xpcc::R2MAC<Nrf24Data, Parameters>::inMySlot()
+{
+	const xpcc::Timestamp endOwnSlotTimestamp = getStartOfOwnSlot() +
+	        timeDataSlotUs;
+
+	const xpcc::Timestamp now = MicroSecondsClock::now();
+
+	return (getStartOfOwnSlot() < now) and (now < endOwnSlotTimestamp);
+}
+
+template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::Packet::Type
 xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 {
@@ -178,23 +190,23 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 		const typename Packet::Type packetType = packet->getType();
 
 		// filter packet by its destination address
-//		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
-//		    (packet->getDestination() != Nrf24Data::getAddress())) {
+		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
+		    (packet->getDestination() != Nrf24Data::getAddress())) {
 
-//			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
-//			               << " frame from 0x" << xpcc::hex << packet->getSource()
-//			               << xpcc::ascii << " with 0x" << xpcc::hex
-//			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
+			R2MAC_LOG_INFO << "Overheard " << packet->getTypeName()
+			               << " frame from 0x" << xpcc::hex << packet->getSource()
+			               << xpcc::ascii << " with 0x" << xpcc::hex
+			               << packet->getDestination() << xpcc::ascii << xpcc::endl;
 
-//			// consider data packets as association requests if we're a
-//			// coordinator to reset lease timeouts
-//			// TODO: evaluate if this is needed
-//			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
-//				associationQueue.append(packet->getSource());
-//			}
-//		} else {
+			// consider data packets as association requests if we're a
+			// coordinator to reset lease timeouts
+			// TODO: evaluate if this is needed
+			if( (role == Role::Coordinator) and (packetType == Packet::Type::Data) ) {
+				associationQueue.append(packet->getSource());
+			}
+		} else {
 
-		    R2MAC_LOG_INFO << "received a " << Packet::toStr(packetType) << " packet!" << xpcc::endl;
+			R2MAC_LOG_INFO << "received a " << Packet::toStr(packetType) << " packet!" << xpcc::endl;
 
 			// parse incoming packet
 			switch(packetType) {
@@ -235,7 +247,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 			case Packet::Type::None:
 				break;
 			}
-//		}
+		}
 
 		return packetType;
 	}

@@ -20,19 +20,26 @@
 #include <xpcc/driver/radio/nrf24/nrf24_data.hpp>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::DEBUG
+#define XPCC_LOG_LEVEL xpcc::log::INFO
 
+#define COLOR_RED        "\e[91m"
+#define COLOR_GREEN      "\e[92m"
+#define COLOR_YELLOW     "\e[93m"
+#define COLOR_BLUE       "\e[94m"
+#define COLOR_WHITE      "\e[97m"
+#define COLOR_END        "\e[0m"
 
+#define R2MAC_MODE_INDICATOR_START	((Config::currentMode == Config::Mode::Rx) ? COLOR_WHITE : COLOR_RED)
+#define R2MAC_MODE_INDICATOR_END	(COLOR_END)
 
-#define RED        "\e[91m"
-#define GREEN      "\e[92m"
-#define YELLOW     "\e[93m"
-#define BLUE       "\e[94m"
-#define WHITE      "\e[97m"
-#define END        "\e[0m"
+#define R2MAC_LOG_DEBUG	XPCC_LOG_DEBUG << R2MAC_MODE_INDICATOR_START << \
+	                    "[r2mac:debug] " << R2MAC_MODE_INDICATOR_END
 
-#define R2MAC_LOG_INFO	XPCC_LOG_INFO << ((Config::currentMode == Config::Mode::Rx) ? WHITE : RED) <<	"[r2mac:info] " << END
-#define R2MAC_LOG_ERROR	XPCC_LOG_ERROR <<	"[r2mac:error] "
+#define R2MAC_LOG_INFO	XPCC_LOG_INFO << R2MAC_MODE_INDICATOR_START << \
+	                    "[r2mac:info] " << R2MAC_MODE_INDICATOR_END
+
+#define R2MAC_LOG_ERROR XPCC_LOG_ERROR << R2MAC_MODE_INDICATOR_START << \
+	                    "[r2mac:error] " << R2MAC_MODE_INDICATOR_END
 
 namespace xpcc
 {
@@ -65,7 +72,7 @@ struct R2MACDefaultParameters
 
 	/// Probability in percent to become a coordinator if no super frame is
 	/// received during role selection
-	static constexpr int coordinatorElectionProbabilityPercent = 70;
+	static constexpr int coordinatorElectionProbabilityPercent = 50;
 
 	/// Minimum number of association slots to listen for other beacon after
 	/// self election to coordinator
@@ -94,7 +101,7 @@ struct R2MACDefaultParameters
 	static constexpr int associationQueueSize = associationSlots;
 
 	/// Length of the beacon queue (by initial design equal to 1)
-	static constexpr int beaconQueueSize = 1;
+	static constexpr int beaconQueueSize = 5;
 
 };
 
@@ -257,7 +264,7 @@ private:
 
 	static constexpr uint32_t
 	getSuperFrameDurationUs(uint8_t memberCount) {
-		return (Parameters::associationSlots * timeAssociationSlotUs) +
+		return timeAssociationPeriodUs +
 		       ((memberCount + 1) * timeDataSlotUs) + // coordinator also has a slot
 		       frameAirTimeUs; // beacon frame
 	}
@@ -281,7 +288,7 @@ private:
 	static constexpr uint8_t timeSwitchUs = 130;
 
 	/// Guard interval at end of each slot
-	static constexpr uint16_t timeGuardUs = 2 * timeSwitchUs;
+	static constexpr uint16_t timeGuardUs = 4 * timeSwitchUs;
 
 	/// Duration of an association slot
 	static constexpr uint32_t timeAssociationSlotUs =
@@ -323,6 +330,13 @@ private:
 	/// Adopt network information from beacon frame
 	static bool
 	updateNetworkInfo(NodeAddress coordinatorAddress, typename Frames::Beacon& beacon);
+
+	static bool
+	inMySlot();
+
+	static xpcc_always_inline xpcc::Timestamp
+	    getStartOfOwnSlot()
+	{ return timeLastBeacon + timeAssociationPeriodUs + (ownDataSlot * timeDataSlotUs); }
 
 private:
 	enum class
@@ -424,6 +438,7 @@ private:
 		Activity activity;
 		TimeoutUs timeoutUs;
 		NodeTimerList memberLeaseTimeouts;
+		xpcc::Timestamp targetTimestamp;
 	};
 
 	class MemberActivity : private xpcc::Resumable<1>
@@ -437,13 +452,6 @@ private:
 
 		xpcc::ResumableResult<void>
 		update();
-
-		bool
-		inMySlot();
-
-		xpcc_always_inline xpcc::Timestamp
-		getStartOfOwnSlot()
-		{ return timeLastBeacon + timeAssociationPeriodUs + (ownDataSlot * timeDataSlotUs); }
 
 	private:
 		enum class
@@ -476,7 +484,6 @@ private:
 		Activity activity;
 		TimeoutUs timeoutUs;
 		TimeoutUs leaseTimeoutUs;
-		TimeoutUs ownSlotTimeoutUs;
 		int32_t associationSlot;
 		xpcc::Timestamp targetTimestamp;
 

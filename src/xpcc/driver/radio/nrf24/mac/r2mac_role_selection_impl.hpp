@@ -36,7 +36,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << BLUE << "Activity: " << toStr(activity) << END << xpcc::endl;
+		R2MAC_LOG_INFO << COLOR_BLUE << "Activity: " << toStr(activity) << COLOR_END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
@@ -67,7 +67,13 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 					CALL_ACTIVITY(Activity::BecomeMember);
 				}
 
-				R2MAC_LOG_INFO << "still listening for beacon for " << timeoutUs.remaining() / 1000 << " ms" << xpcc::endl;
+//				R2MAC_LOG_INFO << "still listening for beacon for " << timeoutUs.remaining() / 1000 << " ms" << xpcc::endl;
+
+//				static xpcc::PeriodicTimer rateLimiter(200);
+//				if(rateLimiter.execute()) {
+//					Nrf24Data::Phy::dumpRegisters();
+//				}
+
 				RF_YIELD();
 			}
 
@@ -86,37 +92,38 @@ xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity::update()
 
 		DECLARE_ACTIVITY(Activity::TryBecomingCoordinator)
 		{
-			if(randomRange(0, 100) >
+			// flip a coin if becoming coordinator:
+			//   yes: listen for random period, if no beacon received, become
+			//        coordinator
+			//   no:  listen for beacon again
+			if(randomRange(0, 100) <
 			   Parameters::coordinatorElectionProbabilityPercent) {
-				{
-					const uint32_t delaySlots = randomRange(
-					            Parameters::minSlotsAfterCoordinatorElection,
-					            Parameters::maxSlotsAfterCoordinatorElection);
-
-					const uint32_t delay = timeAssociationSlotUs * delaySlots;
-
-					R2MAC_LOG_INFO << "Waiting for " << delaySlots << " slots "
-					               << "before becoming coordinator" << xpcc::endl;
-
-					timeoutUs.restart(delay);
-				}
-
-				while(not timeoutUs.execute()) {
-					if(not beaconQueue.isEmpty()) {
-						CALL_ACTIVITY(Activity::BecomeMember);
-					}
-
-					RF_YIELD();
-				}
-
-				CALL_ACTIVITY(Activity::BecomeCoordinator);
+				CALL_ACTIVITY(Activity::ListenForBeacon);
 			}
 
-			CALL_ACTIVITY(Activity::ListenForBeacon);
 
-			// flip a coin if becoming coordinator:
-			//   yes: listen for random period, if no beacon received, become coordinator
-			//   no:  listen for beacon again
+			{
+				const uint32_t delaySlots = randomRange(
+				            Parameters::minSlotsAfterCoordinatorElection,
+				            Parameters::maxSlotsAfterCoordinatorElection);
+
+				const uint32_t delay = timeAssociationSlotUs * delaySlots;
+
+				R2MAC_LOG_INFO << "Waiting for " << delaySlots << " slots "
+				               << "before becoming coordinator" << xpcc::endl;
+
+				timeoutUs.restart(delay);
+			}
+
+			while(not timeoutUs.execute()) {
+				if(not beaconQueue.isEmpty()) {
+					CALL_ACTIVITY(Activity::BecomeMember);
+				}
+
+				RF_YIELD();
+			}
+
+			CALL_ACTIVITY(Activity::BecomeCoordinator);
 		}
 
 		DECLARE_ACTIVITY(Activity::BecomeCoordinator)
