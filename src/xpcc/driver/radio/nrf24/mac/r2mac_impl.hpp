@@ -83,7 +83,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setSpeed(Parameters::dataRate);
 	Config::setAddressWidth(Parameters::addressWidth);
 	Config::setCrc(Parameters::crcBytes);
-	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Retransmit1);
+	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Disable);
 
 	// TODO: we still need some entropy/seed for the PRNG later
 }

@@ -53,7 +53,7 @@ struct R2MACDefaultParameters
 	static constexpr int payloadLength = 29;
 
 	/// Number of raw frames that fit into a data slot
-	static constexpr int framesPerDataSlot = 3;
+	static constexpr int framesPerDataSlot = 10;
 
 	/// Number of raw frames that fit into an association slot
 	static constexpr int framesPerAssociationSlot = 3;
