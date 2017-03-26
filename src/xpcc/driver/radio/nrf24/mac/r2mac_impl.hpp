@@ -149,7 +149,15 @@ template<typename Nrf24Data, class Parameters>
 uint8_t
 xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
 {
-	memcpy(nodeList, memberList, memberCount * sizeof(NodeAddress));
+	nodeList = memberList;
+	for(size_t i = 0; i < memberCount; i++) {
+		// if our address is inside the list, we're a member so we can replace
+		// ourself with the coordinator address
+		if(nodeList[i] == getAddress()) {
+			nodeList[i] = coordinatorAddress;
+			break;
+		}
+	}
 	return memberCount;
 }
 
