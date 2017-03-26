@@ -17,7 +17,7 @@
 
 /// Gets called when a new activity has been called
 #define ACTIVITY_LOG_STATE_CHANGE(oldActivity, newActivity, ...) \
-	    XPCC_LOG_INFO << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << toStr(oldActivity) << " -> " << toStr(newActivity) << " ()" << xpcc::endl
+	    XPCC_LOG_DEBUG << XPCC_FILE_INFO << "[sm:" ACTIVITY_LOG_NAME "] " << toStr(oldActivity) << " -> " << toStr(newActivity) << " ()" << xpcc::endl
 
 
 /// Use at the beginning of an activity group
@@ -46,13 +46,5 @@
 /// Ends the activity group
 #define ACTIVITY_GROUP_END(result) \
 			RF_END_RETURN(result);
-
-/// Calls and directly executes a caller task
-#define ACTIVITY_CALL_TASK(task) do { \
-		this->tmpTask = task; \
-		while (!this->tmpTask->isFinished()) { \
-			this->tmpTask->update(); \
-			RF_YIELD() \
-		} } while(0)
 
 #endif	// ROBOTS_ACTIVITIES_MACROS_HPP

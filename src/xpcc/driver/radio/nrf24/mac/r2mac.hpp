@@ -225,11 +225,8 @@ private:
 	using Nrf24DataPacket = typename Nrf24Data::Packet;
 
 	static constexpr uint32_t
-	getSuperFrameDurationUs(uint8_t memberCount) {
-		return timeAssociationPeriodUs +
-		       ((memberCount + 1) * timeDataSlotUs) + // coordinator also has a slot
-		       frameAirTimeUs; // beacon frame
-	}
+	getSuperFrameDurationUs(uint8_t memberCount)
+	{ return timeAssociationPeriodUs + ((memberCount + 1) * timeDataSlotUs); }
 
 	/// Fixed payload size of every frame
 	static constexpr uint8_t phyPayloadSizeByte = sizeof(Packet);
@@ -323,7 +320,7 @@ private:
 
 	static xpcc_always_inline void
 	clearAssociation()
-	{ ownDataSlot = 0; }
+	{ ownDataSlot = 0; /* memberCount = 0; */ }
 
 	/// Get a random value from (inclusive) interval [from, to]
 	static xpcc_always_inline uint32_t
@@ -333,6 +330,9 @@ private:
 	static xpcc_always_inline xpcc::Timestamp
 	getStartOfOwnSlot()
 	{ return timeLastBeacon + timeAssociationPeriodUs + (ownDataSlot * timeDataSlotUs); }
+
+	static void
+	waitUntilReadyToSend();
 
 private:
 	enum class
@@ -356,10 +356,7 @@ private:
 	{
 	public:
 		RoleSelectionActivity()
-		{ initialize(); }
-
-		void
-		initialize();
+		{ activity = Activity::Init; }
 
 		xpcc::ResumableResult<void>
 		update();
@@ -397,10 +394,7 @@ private:
 	{
 	public:
 		CoordinatorActivity()
-		{ initialize(); }
-
-		void
-		initialize();
+		{ activity = Activity::Init; }
 
 		xpcc::ResumableResult<void>
 		update();
@@ -441,10 +435,7 @@ private:
 	{
 	public:
 		MemberActivity()
-		{ initialize(); }
-
-		void
-		initialize();
+		{ activity = Activity::Init; }
 
 		xpcc::ResumableResult<void>
 		update();

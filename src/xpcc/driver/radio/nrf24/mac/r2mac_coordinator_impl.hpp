@@ -12,26 +12,18 @@
 #endif
 
 #include <xpcc/processing.hpp>
+#include <xpcc/debug/logger.hpp>
 #include "r2mac.hpp"
 
 #undef ACTIVITY_LOG_NAME
 #define ACTIVITY_LOG_NAME "coordinator"
 
-
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::WARNING
+#define XPCC_LOG_LEVEL xpcc::log::DEBUG
 
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::coordinatorActivity;
-
-
-template<typename Nrf24Data, class Parameters>
-void
-xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::initialize()
-{
-	activity = Activity::Init;
-}
 
 template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
@@ -39,41 +31,36 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << COLOR_YELLOW << "Activity: " << toStr(activity) << COLOR_END << xpcc::endl;
+		R2MAC_LOG_INFO << COLOR_YELLOW << "Activity: " << toStr(activity)
+		               << COLOR_END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
 	{
 		DECLARE_ACTIVITY(Activity::Init)
 		{
-			ownDataSlot = 0;	// by convention
-			memberCount = 0;
+			clearAssociation();
+
+			// we're the coordinator now
 			coordinatorAddress = getAddress();
+
+			// clear stale control packets in queues
+			beaconQueue.clear();
 			associationQueue.clear();
 
 			// Reset member list and lease timers
+			memberCount = 0;
 			for(uint8_t i = 0; i < Parameters::maxMembers; i++) {
 				memberLeaseTimeouts[i].stop();
 				memberList[i] = 0;
 			}
-
-
-			R2MAC_LOG_DEBUG << "Data Slot duration: " << (timeDataSlotUs / 1000)
-			                << " ms" << xpcc::endl;
-			R2MAC_LOG_DEBUG << "Association Slot duration: "
-			                << (timeAssociationSlotUs / 1000) << " ms"
-			                << xpcc::endl;
 
 			CALL_ACTIVITY(Activity::SendBeacon);
 		}
 
 		DECLARE_ACTIVITY(Activity::SendBeacon)
 		{
-
-			RF_WAIT_UNTIL(Nrf24Data::isReadyToSend());
-
-			{
-				Nrf24DataPacket packetNrf24Data;
+			{	// prepare beacon frame
 				auto beaconPacket = reinterpret_cast<Packet*>(&packetNrf24Data);
 				auto beaconFrame = reinterpret_cast<typename Frames::Beacon*>(beaconPacket->payload);
 
@@ -84,21 +71,21 @@ xpcc::R2MAC<Nrf24Data, Parameters>::CoordinatorActivity::update()
 				for (uint8_t i = 0; i < memberCount; i++) {
 					beaconFrame->members[i] = memberList[i];
 				}
-
-				if(not Nrf24Data::sendPacket(packetNrf24Data)) {
-					R2MAC_LOG_ERROR << "Unable to send beacon" << xpcc::endl;
-				}
 			}
 
-			// blocking wait until packet is really sent
-			while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
-				// we have do update the driver here in order to switch back to
-				// RX mode as fast as possible
-				Nrf24Data::update();
-			}
+			// busy-wait until we can send a packet, we don't want to yield
+			// because we want to send the beacon as soon as possible
+			waitUntilReadyToSend();
 
-			// Beacon has now been sent
-			timeLastBeacon = MicroSecondsClock::now();
+			if(Nrf24Data::sendPacket(packetNrf24Data)) {
+				// beacon has now been sent
+				timeLastBeacon = MicroSecondsClock::now();
+			} else {
+				R2MAC_LOG_ERROR << "Unable to send beacon" << xpcc::endl;
+
+				// try again
+				CALL_ACTIVITY(Activity::SendBeacon);
+			}
 
 			{	// Debug output
 				const uint32_t superFrameDurationMs =

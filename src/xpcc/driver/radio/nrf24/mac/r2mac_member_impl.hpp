@@ -12,22 +12,18 @@
 #endif
 
 #include <xpcc/processing.hpp>
+#include <xpcc/debug/logger.hpp>
 #include "r2mac.hpp"
 
 #undef ACTIVITY_LOG_NAME
 #define ACTIVITY_LOG_NAME "member"
 
+#undef  XPCC_LOG_LEVEL
+#define XPCC_LOG_LEVEL xpcc::log::INFO
+
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity
 xpcc::R2MAC<Nrf24Data, Parameters>::memberActivity;
-
-
-template<typename Nrf24Data, class Parameters>
-void
-xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::initialize()
-{
-	activity = Activity::Init;
-}
 
 template<typename Nrf24Data, class Parameters>
 xpcc::ResumableResult<void>
@@ -35,7 +31,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 {
 	static xpcc::PeriodicTimer rateLimiter(500);
 	if(rateLimiter.execute()) {
-		R2MAC_LOG_INFO << COLOR_GREEN << "Activity: " << toStr(activity) << COLOR_END << xpcc::endl;
+		R2MAC_LOG_INFO << COLOR_GREEN << "Activity: " << toStr(activity)
+		               << COLOR_END << xpcc::endl;
 	}
 
 	ACTIVITY_GROUP_BEGIN(0)
@@ -51,10 +48,19 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 			// we need to check our associate with every beacon
 			clearAssociation();
 
-			// maximum amount of time to wait for a beacon
-			timeoutUs.restart(getSuperFrameDurationUs(memberCount) * Parameters::maxMissedBeacons);
+			{
+				// worst case assumption if no previous member count is known
+				const uint32_t currentMemberCount =
+				        (memberCount != 0) ? memberCount: Parameters::maxMembers;
 
-			// wait for Beacon frame
+				const uint32_t superFrameDurationUs =
+				        getSuperFrameDurationUs(currentMemberCount);
+
+				// maximum amount of time to wait for a beacon frame
+				timeoutUs.restart(superFrameDurationUs * Parameters::maxMissedBeacons);
+			}
+
+			// wait for beacon frame
 			while(not timeoutUs.isExpired()) {
 				if(not beaconQueue.isEmpty()) {
 					{
@@ -128,7 +134,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 				if(Nrf24Data::sendPacket(packetNrf24Data)) {
 					// wait for the outcome of our association attempt, timing
 					// not so crucial anymore
-					RF_WAIT_UNTIL(Nrf24Data::isSendingDone());
+					RF_WAIT_UNTIL(Nrf24Data::isReadyToSend());
 
 					switch(Nrf24Data::getFeedback().sendingFeedback) {
 					case Nrf24Data::SendingFeedback::FinishedAck:
@@ -145,8 +151,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 					                << xpcc::endl;
 				}
 			} else {
-				R2MAC_LOG_ERROR << "We missed our association slot :("
-				                << xpcc::endl;
+				R2MAC_LOG_ERROR << "We missed our association slot (it was #"
+				                << associationSlot << ") :(" << xpcc::endl;
 			}
 
 			if(isAssociated()) {
@@ -176,7 +182,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::ReceiveData)
 		{
-			// End of Super Frame
+			// end of Super Frame
 			targetTimestamp = timeLastBeacon + getSuperFrameDurationUs(memberCount);
 
 			while(MicroSecondsClock::now() < targetTimestamp) {
@@ -197,28 +203,27 @@ xpcc::R2MAC<Nrf24Data, Parameters>::MemberActivity::update()
 
 		DECLARE_ACTIVITY(Activity::OwnSlot)
 		{
-			// Time when a packet ca be transmitted the latest to not violate
-			// the guard interval.
+			// Time when a packet can be transmitted at the latest to not
+			// violate the guard interval.
 			// Note: assumes frame transmission only lasts frameAirTimeUs, not
 			// considering switch time nor retransmissions yet
 			targetTimestamp = getStartOfOwnSlot() + timeDataTransmissionUs - frameAirTimeUs;
 
 			while(inMySlot()) {
-
 				if (not dataTXQueue.isEmpty()) {
+
+					// wait until we can really transmit
+					while(not Nrf24Data::isReadyToSend()) {
+						Nrf24Data::update();
+					}
+
 					if(MicroSecondsClock::now() < targetTimestamp) {
-
-						if(Nrf24Data::isReadyToSend() and Nrf24Data::sendPacket(dataTXQueue.getFront())) {
+						if(Nrf24Data::sendPacket(dataTXQueue.getFront())) {
 							dataTXQueue.removeFront();
-
-							while(Nrf24Data::getFeedback().sendingFeedback == Nrf24Data::SendingFeedback::Busy) {
-								Nrf24Data::update();
-								RF_YIELD();
-							}
-						} else {
 						}
 					}
 				}
+
 				RF_YIELD();
 			}
 

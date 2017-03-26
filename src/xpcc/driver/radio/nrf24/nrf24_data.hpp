@@ -151,11 +151,8 @@ public:
 	static bool
 	getPacket(Packet& packet);
 
-	static bool
-	isReadyToSend();
-
 	static xpcc_always_inline bool
-	isSendingDone()
+	isReadyToSend()
 	{ return feedbackLastPacket.sendingFeedback != SendingFeedback::Busy; }
 
 	static bool

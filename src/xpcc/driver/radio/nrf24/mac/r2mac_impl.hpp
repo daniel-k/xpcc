@@ -88,7 +88,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setCrc(Parameters::crcBytes);
 	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Disable);
 
-	srand(network);
+	// seed with own address, this at least guarantees a different seed on all
+	// nodes in the network
+	srand(address);
+
+	R2MAC_LOG_DEBUG << "Data Slot duration: " << (timeDataSlotUs / 1000)
+	                << " ms" << xpcc::endl;
+	R2MAC_LOG_DEBUG << "Association Slot duration: "
+	                << (timeAssociationSlotUs / 1000) << " ms"
+	                << xpcc::endl;
 }
 
 template<typename Nrf24Data, class Parameters>
@@ -115,6 +123,15 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 	case Role::Member:
 		memberActivity.update();
 		break;
+	}
+}
+
+template<typename Nrf24Data, class Parameters>
+void
+xpcc::R2MAC<Nrf24Data, Parameters>::waitUntilReadyToSend()
+{
+	while(not Nrf24Data::isReadyToSend()) {
+		Nrf24Data::update();
 	}
 }
 

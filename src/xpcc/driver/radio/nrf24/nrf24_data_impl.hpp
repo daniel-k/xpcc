@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::INFO
+#define XPCC_LOG_LEVEL xpcc::log::DEBUG
 
 // -----------------------------------------------------------------------------
 
@@ -235,15 +235,6 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::getPacket(Packet& packet)
 	Phy::readRxPayload(reinterpret_cast<uint8_t*>(&packet));
 
 	return true;
-}
-
-// -----------------------------------------------------------------------------
-
-template<typename Nrf24Phy, typename Clock>
-bool
-xpcc::Nrf24Data<Nrf24Phy, Clock>::isReadyToSend()
-{
-	return (feedbackCurrentPacket.sendingFeedback != SendingFeedback::Busy);
 }
 
 // -----------------------------------------------------------------------------
