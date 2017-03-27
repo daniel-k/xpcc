@@ -56,7 +56,7 @@ struct R2MACDefaultParameters
 	static constexpr int framesPerDataSlot = 10;
 
 	/// Number of raw frames that fit into an association slot
-	static constexpr int framesPerAssociationSlot = 3;
+	static constexpr int framesPerAssociationSlot = 4;
 
 	/// Number of slots in association period
 	static constexpr int associationSlots = maxMembers / 2 + 1;

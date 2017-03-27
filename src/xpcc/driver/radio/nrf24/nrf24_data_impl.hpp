@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::DEBUG
+#define XPCC_LOG_LEVEL xpcc::log::WARNING
 
 // -----------------------------------------------------------------------------
 

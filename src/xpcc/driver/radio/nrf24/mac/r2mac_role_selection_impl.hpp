@@ -20,7 +20,7 @@
 #define ACTIVITY_LOG_NAME "role-selection"
 
 #undef  XPCC_LOG_LEVEL
-#define XPCC_LOG_LEVEL xpcc::log::INFO
+#define XPCC_LOG_LEVEL xpcc::log::WARNING
 
 template<typename Nrf24Data, class Parameters>
 typename xpcc::R2MAC<Nrf24Data, Parameters>::RoleSelectionActivity

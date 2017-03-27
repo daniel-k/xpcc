@@ -86,7 +86,8 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	Config::setSpeed(Parameters::dataRate);
 	Config::setAddressWidth(Parameters::addressWidth);
 	Config::setCrc(Parameters::crcBytes);
-	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Disable);
+	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Retransmit2);
+	Config::setRfPower(Config::RfPower::Minus6dBm);
 
 	// seed with own address, this at least guarantees a different seed on all
 	// nodes in the network
