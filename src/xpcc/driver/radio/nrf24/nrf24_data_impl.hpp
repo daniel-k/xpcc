@@ -74,10 +74,9 @@ xpcc::Nrf24Data<Nrf24Phy, Clock>::initialize(BaseAddress base_address, Address o
 	// So we set it to the bitwise negated base address.
 	Phy::setRxAddress(Pipe::PIPE_0, ~assembleAddress(0x55));
 
-	// don't enable auto ack here because we're not expecting data on this pipe
 	// It was observed that when set to 'false' no packet is received until the
-	// module sends a packet once.
-	Config::enablePipe(Pipe::PIPE_0, false);
+	// module sends a packet once, although we don't want to sent ACKs here.
+	Config::enablePipe(Pipe::PIPE_0, true);
 
 	// Enable feature 'EN_DYN_ACK' to be able to send packets without expecting
 	// an ACK as response (used for transmitting to broadcast address)
