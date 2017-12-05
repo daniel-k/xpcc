@@ -19,6 +19,9 @@
 #include <xpcc/driver/radio/nrf24/nrf24_config.hpp>
 #include <xpcc/driver/radio/nrf24/nrf24_data.hpp>
 
+#include "r2mac_packet.hpp"
+#include "r2mac_roles.hpp"
+
 #undef  XPCC_LOG_LEVEL
 #define XPCC_LOG_LEVEL xpcc::log::WARNING
 
@@ -98,6 +101,27 @@ struct R2MACDefaultParameters
 	static constexpr int sendDataQueueSize = 32;
 };
 
+
+template<typename Nrf24Data, typename Parameters_ = R2MACDefaultParameters>
+class Config {
+
+	using Parameters				= Parameters_;
+	using LinkLayer					= Nrf24Data;
+
+	// interface that needs to be provided by LinkLayer
+	using L2Clock			= typename LinkLayer::ClockLower;
+	using L2Address			= typename LinkLayer::Address;
+	using L2NetworkAddress	= typename LinkLayer::BaseAddress;
+	using L2Header			= typename LinkLayer::Header;
+	using L2Frame			= typename LinkLayer::Packet;
+
+	// time related
+	using PeriodicTimerUs	= xpcc::GenericPeriodicTimer<L2Clock>;
+	using TimeoutUs			= xpcc::GenericTimeout<L2Clock>;
+	using MemberTimeoutList	= std::array<TimeoutUs, Parameters::maxMembers>;
+};
+
+
 /**
  * Realtime Robot MAC (R2MAC)
  *
@@ -105,85 +129,25 @@ struct R2MACDefaultParameters
  * @author	Daniel Krebs
  * @author  Tomasz Chyrowicz
  */
-template<typename Nrf24Data, class Parameters = R2MACDefaultParameters>
-class R2MAC : private xpcc::Resumable<1>
+template<typename Config>
+class R2MAC :
+        public R2MACPacket<Config>,
+        public R2MACRoles<Config>,
+        private xpcc::Resumable<1>
 {
 public:
-	using Feedback = typename Nrf24Data::SendingFeedback;
-	using NetworkAddress = typename Nrf24Data::BaseAddress;
-	using NodeAddress = typename Nrf24Data::Address;
-	using NodeList = std::array<NodeAddress, Parameters::maxMembers>;
 
-	class xpcc_packed Packet
-	{
-		// R2MAC needs to access private interfaces
-		friend R2MAC;
+	using NetworkAddress	= typename Config::L2NetworkAddress;
+	using NodeAddress		= typename Config::L2Address;
 
+	using Feedback			= typename Config::L2::SendingFeedback;
+	using NodeList			= std::array<NodeAddress, Config::Parameters::maxMembers>;
 
-	// ------ Types ------
-	public:
-		enum class
-		Type : uint8_t
-		{
-			Beacon = 0x01,
-			AssociationRequest = 0x02,
-			Data = 0x03,
-			None = 0xff
-		};
+	// dependent types
+	using typename xpcc::R2MACPacket<Config>::Packet;
+	using typename xpcc::R2MACRoles<Config>::Role;
+	using typename xpcc::R2MACRoles<Config>::Activities;
 
-		static const char*
-		toStr(Type type) {
-			switch(type) {
-			case Type::Beacon:				return "Beacon";
-			case Type::AssociationRequest:	return "AssociationRequest";
-			case Type::Data:				return "Data";
-			case Type::None:				return "None";
-			default:						return "Invalid"; }
-		}
-
-	private:
-		struct xpcc_packed Header
-		{
-			Type type;
-		};
-
-		using HeaderBelow = typename Nrf24Data::Header;
-
-
-	// ------ Data ------
-	/// Memory layout is such that an instance of this class can be piped into
-	/// the PHY without further alterations.
-	private:
-		HeaderBelow headerBelow;
-		Header	header;
-	public:
-		/// User will put data here
-		uint8_t	payload[Nrf24Data::Packet::getPayloadLength() - sizeof(Header)];
-
-
-	// ------ Functions ------
-	public:
-		xpcc_always_inline void
-		setDestination(NodeAddress dest)
-		{ headerBelow.dest = dest; }
-
-		xpcc_always_inline NodeAddress
-		getSource()
-		{ return headerBelow.src; }
-
-		xpcc_always_inline NodeAddress
-		getDestination()
-		{ return headerBelow.dest; }
-
-	private:
-		xpcc_always_inline void
-		setType(Type type)
-		{ header.type = type; }
-
-		xpcc_always_inline Type
-		getType()
-		{ return header.type; }
-	};
 
 public:
 	/// Initialization of R2MAC, has to be called prior to usage
@@ -205,7 +169,7 @@ public:
 
 	static xpcc_always_inline NodeAddress
 	getAddress()
-	{ return Nrf24Data::getAddress(); }
+	{ return Config::LinkLayer::getAddress(); }
 
 	static xpcc_always_inline bool
 	isAssociated()
@@ -213,16 +177,13 @@ public:
 
 	static constexpr uint8_t
 	getFrameOverhead()
-	{ return Nrf24Data::getFrameOverhead() + sizeof(typename Packet::Header); }
+	{ return Packet::getFrameOverhead(); }
 
 	static constexpr uint8_t
 	getPayloadLength()
-	{ return Parameters::payloadLength; }
+	{ return Config::Parameters::payloadLength; }
 
 private:
-
-	using Config = typename Nrf24Data::Config;
-	using Nrf24DataPacket = typename Nrf24Data::Packet;
 
 	static constexpr uint32_t
 	getSuperFrameDurationUs(uint8_t memberCount)
@@ -231,17 +192,12 @@ private:
 	/// Fixed payload size of every frame
 	static constexpr uint8_t phyPayloadSizeByte = sizeof(Packet);
 
-	/// On-air frame size in bits
-	static constexpr uint16_t frameAirSizeBits =
-	        8 * (1 // Preamble
-	             + Config::toNum(Parameters::addressWidth)
-	             + phyPayloadSizeByte
-	             + Config::toNum(Parameters::crcBytes))
-	        + 9; // Packet Control Field
-
 	/// On-air frame time in microseconds
 	static constexpr uint16_t frameAirTimeUs =
-	        (1000000UL * frameAirSizeBits) / static_cast<uint32_t>(Parameters::dataRate);
+	        frameAirTimeUs(phyPayloadSizeByte,
+	                       Config::Parameters::addressWidth,
+	                       Config::Parameters::crcBytes,
+	                       Config::Parameters::dataRate);
 
 	/// Switching time between Rx,Tx and Standby (all the same) in microseconds
 	static constexpr uint8_t timeSwitchUs = 130;
@@ -251,7 +207,7 @@ private:
 
 	/// Time of an association slot when transmission is allowed
 	static constexpr uint32_t timeAssociationTransmissionUs =
-	        Parameters::framesPerAssociationSlot * frameAirTimeUs;
+	        Config::Parameters::framesPerAssociationSlot * frameAirTimeUs;
 
 	/// Duration of an association slot
 	static constexpr uint32_t timeAssociationSlotUs =
@@ -259,11 +215,11 @@ private:
 
 	/// Duration of whole association period
 	static constexpr uint32_t timeAssociationPeriodUs =
-	        timeAssociationSlotUs * Parameters::associationSlots;
+	        timeAssociationSlotUs * Config::Parameters::associationSlots;
 
 	/// Time of a data slot when transmission is allowed
 	static constexpr uint32_t timeDataTransmissionUs =
-	        Parameters::framesPerDataSlot * frameAirTimeUs;
+	        Config::Parameters::framesPerDataSlot * frameAirTimeUs;
 
 	/// Duration of a data slot
 	static constexpr uint32_t timeDataSlotUs =
@@ -271,10 +227,11 @@ private:
 
 	/// Worst case duration of a super frame, assuming a fully populated network
 	static constexpr uint32_t timeMaxSuperFrameUs =
-	        getSuperFrameDurationUs(Parameters::maxMembers);
+	        getSuperFrameDurationUs(Config::Parameters::maxMembers);
 
 	/// Length of the association queue
-	static constexpr int associationQueueSize = Parameters::associationSlots;
+	static constexpr int associationQueueSize =
+	        Config::Parameters::associationSlots;
 
 	/// Length of the beacon queue (by initial design equal to 1)
 	static constexpr int beaconQueueSize = 1;
@@ -285,7 +242,7 @@ private:
 	public:
 		struct xpcc_packed Beacon {
 			uint8_t memberCount;
-			uint8_t members[Parameters::maxMembers];
+			uint8_t members[Config::Parameters::maxMembers];
 		};
 
 		// AssociationRequest currently has no payload, hence no definition here
@@ -295,16 +252,10 @@ private:
 		};
 	};
 
-	using DataRXQueue = xpcc::BoundedDeque<Packet, Parameters::receivedDataQueueSize>;
-	using DataTXQueue = xpcc::BoundedDeque<Nrf24DataPacket, Parameters::sendDataQueueSize>;
+	using DataRXQueue = xpcc::BoundedDeque<Packet, Config::Parameters::receivedDataQueueSize>;
+	using DataTXQueue = xpcc::BoundedDeque<typename Config::L2Frame, Config::Parameters::sendDataQueueSize>;
 	using BeaconQueue = xpcc::BoundedDeque<Packet, beaconQueueSize>;
 	using AssociationQueue = xpcc::BoundedDeque<NodeAddress, associationQueueSize>;
-
-private:
-	using MicroSecondsClock = typename Nrf24Data::ClockLower;
-	using PeriodicTimerUs = xpcc::GenericPeriodicTimer<MicroSecondsClock>;
-	using TimeoutUs = xpcc::GenericTimeout<MicroSecondsClock>;
-	using NodeTimerList = std::array<TimeoutUs, Parameters::maxMembers>;
 
 private:
 	/// Check whether node is listed inside node list
@@ -334,147 +285,6 @@ private:
 	static void
 	waitUntilReadyToSend();
 
-private:
-	enum class
-	Role
-	{
-		None,
-		Coordinator,
-		Member
-	};
-
-	static const char*
-	toStr(Role role) {
-		switch(role) {
-		case Role::Coordinator:	return "Coordinator";
-		case Role::Member:		return "Member";
-		case Role::None:		return "None";
-		default:				return "Invalid"; }
-	}
-
-	class RoleSelectionActivity : private xpcc::Resumable<1>
-	{
-	public:
-		RoleSelectionActivity()
-		{ activity = Activity::Init; }
-
-		xpcc::ResumableResult<void>
-		update();
-
-	private:
-		enum class
-		Activity
-		{
-			Init,
-			ListenForBeacon,
-			BecomeMember,
-			CheckBecomingCoordinator,
-			TryBecomingCoordinator,
-			BecomeCoordinator,
-		};
-
-
-		static const char*
-		toStr(Activity activity) {
-			switch(activity) {
-			case Activity::Init:						return "Init";
-			case Activity::ListenForBeacon:				return "ListenForBeacon";
-			case Activity::BecomeMember:				return "BecomeMember";
-			case Activity::CheckBecomingCoordinator:	return "CheckBecomingCoordinator";
-			case Activity::TryBecomingCoordinator:		return "TryBecomingCoordinator";
-			case Activity::BecomeCoordinator:			return "BecomeCoordinator";
-			default:									return "Invalid"; }
-		}
-
-		Activity activity;
-		TimeoutUs timeoutUs;
-	};
-
-	class CoordinatorActivity : private xpcc::Resumable<1>
-	{
-	public:
-		CoordinatorActivity()
-		{ activity = Activity::Init; }
-
-		xpcc::ResumableResult<void>
-		update();
-
-	private:
-		enum class
-		Activity
-		{
-			Init,
-			SendBeacon,
-			ListenForRequests,
-			SendData,
-			ReceiveData,
-			UpdateNodeList,
-			LeaveCoordinatorRole,
-		};
-
-		static const char*
-		toStr(Activity activity) {
-			switch(activity) {
-			case Activity::Init:					return "Init";
-			case Activity::SendBeacon:				return "SendBeacon";
-			case Activity::ListenForRequests:		return "ListenForRequests";
-			case Activity::SendData:				return "SendData";
-			case Activity::ReceiveData:				return "ReceiveData";
-			case Activity::UpdateNodeList:			return "UpdateNodeList";
-			case Activity::LeaveCoordinatorRole:	return "LeaveCoordinatorRole";
-			default:								return "Invalid";  }
-		}
-
-		Activity activity;
-		TimeoutUs timeoutUs;
-		NodeTimerList memberLeaseTimeouts;
-		xpcc::Timestamp targetTimestamp;
-	};
-
-	class MemberActivity : private xpcc::Resumable<1>
-	{
-	public:
-		MemberActivity()
-		{ activity = Activity::Init; }
-
-		xpcc::ResumableResult<void>
-		update();
-
-	private:
-		enum class
-		Activity
-		{
-			Init,
-			ReceiveBeacon,
-			CheckAssociation,
-			Associate,
-			WaitForDataSlots,
-			ReceiveData,
-			OwnSlot,
-			LeaveNetwork,
-		};
-
-		static const char*
-		toStr(Activity activity) {
-			switch(activity) {
-			case Activity::Init:				return "Init";
-			case Activity::ReceiveBeacon:		return "ReceiveBeacon";
-			case Activity::CheckAssociation:	return "CheckAssociation";
-			case Activity::Associate:			return "Associate";
-			case Activity::WaitForDataSlots:	return "WaitForDataSlots";
-			case Activity::ReceiveData:			return "ReceiveData";
-			case Activity::OwnSlot:				return "OwnSlot";
-			case Activity::LeaveNetwork:		return "LeaveNetwork";
-			default:							return "Invalid"; }
-		}
-
-		Activity activity;
-		TimeoutUs timeoutUs;
-		TimeoutUs leaseTimeoutUs;
-		int32_t associationSlot;
-		xpcc::Timestamp targetTimestamp;
-
-	};
 
 private:
 	static NodeAddress coordinatorAddress;
@@ -485,7 +295,7 @@ private:
 	static xpcc::Timestamp timeLastBeacon;
 	static xpcc::Timestamp timestamp;
 
-	static Nrf24DataPacket packetNrf24Data;
+	static typename Config::L2Frame l2Frame;
 
 	static DataRXQueue dataRXQueue;
 	static DataTXQueue dataTXQueue;
@@ -493,9 +303,9 @@ private:
 	static BeaconQueue beaconQueue;
 
 	static Role role;
-	static RoleSelectionActivity roleSelectionActivity;
-	static CoordinatorActivity coordinatorActivity;
-	static MemberActivity memberActivity;
+	static typename Activities::RoleSelectionActivity roleSelectionActivity;
+	static typename Activities::CoordinatorActivity coordinatorActivity;
+	static typename Activities::MemberActivity memberActivity;
 };
 
 }

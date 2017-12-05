@@ -16,76 +16,78 @@
 #include <xpcc/debug/logger/style.hpp>
 #include "r2mac.hpp"
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::NodeList
-xpcc::R2MAC<Nrf24Data, Parameters>::memberList;
+template<typename Config>
+typename xpcc::R2MAC<Config>::NodeList
+xpcc::R2MAC<Config>::memberList;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::Role
-xpcc::R2MAC<Nrf24Data, Parameters>::role =
-        xpcc::R2MAC<Nrf24Data, Parameters>::Role::None;
+template<typename Config>
+typename xpcc::R2MAC<Config>::Role
+xpcc::R2MAC<Config>::role =
+        xpcc::R2MAC<Config>::Role::None;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::NodeAddress
-xpcc::R2MAC<Nrf24Data, Parameters>::coordinatorAddress;
+template<typename Config>
+typename xpcc::R2MAC<Config>::NodeAddress
+xpcc::R2MAC<Config>::coordinatorAddress;
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 uint8_t
-xpcc::R2MAC<Nrf24Data, Parameters>::memberCount = 0;
+xpcc::R2MAC<Config>::memberCount = 0;
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 xpcc::Timestamp
-xpcc::R2MAC<Nrf24Data, Parameters>::timeLastBeacon;
+xpcc::R2MAC<Config>::timeLastBeacon;
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 xpcc::Timestamp
-xpcc::R2MAC<Nrf24Data, Parameters>::timestamp;
+xpcc::R2MAC<Config>::timestamp;
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 uint8_t
-xpcc::R2MAC<Nrf24Data, Parameters>::ownDataSlot = 0;
+xpcc::R2MAC<Config>::ownDataSlot = 0;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::DataRXQueue
-xpcc::R2MAC<Nrf24Data, Parameters>::dataRXQueue;
+template<typename Config>
+typename xpcc::R2MAC<Config>::DataRXQueue
+xpcc::R2MAC<Config>::dataRXQueue;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::Nrf24DataPacket
-xpcc::R2MAC<Nrf24Data, Parameters>::packetNrf24Data;
+template<typename Config>
+typename Config::L2Frame
+xpcc::R2MAC<Config>::l2Frame;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::DataTXQueue
-xpcc::R2MAC<Nrf24Data, Parameters>::dataTXQueue;
+template<typename Config>
+typename xpcc::R2MAC<Config>::DataTXQueue
+xpcc::R2MAC<Config>::dataTXQueue;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::AssociationQueue
-xpcc::R2MAC<Nrf24Data, Parameters>::associationQueue;
+template<typename Config>
+typename xpcc::R2MAC<Config>::AssociationQueue
+xpcc::R2MAC<Config>::associationQueue;
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::BeaconQueue
-xpcc::R2MAC<Nrf24Data, Parameters>::beaconQueue;
+template<typename Config>
+typename xpcc::R2MAC<Config>::BeaconQueue
+xpcc::R2MAC<Config>::beaconQueue;
 
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 void
-xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddress address)
+xpcc::R2MAC<Config>::initialize(NetworkAddress network, NodeAddress address)
 {
-	static_assert( (Parameters::payloadLength + getFrameOverhead()) <=
-	                Nrf24Data::Phy::getMaxPayload(),
+	// TODO: no abstraction of PHY, only works for Nrf24 here
+
+	static_assert( (Config::Parameters::payloadLength + getFrameOverhead()) <=
+	                Config::LinkLayer::Phy::getMaxPayload(),
 	               "Payload length exceeds what Nrf24Phy can provide");
 
 	static_assert((sizeof(typename Frames::Beacon) + getFrameOverhead()) <=
-	              Nrf24Data::Phy::getMaxPayload(),
+	              Config::LinkLayer::Phy::getMaxPayload(),
 	              "Too many member nodes");
 
-	Nrf24Data::Phy::initialize(phyPayloadSizeByte);
-	Nrf24Data::initialize(network, address);
+	Config::LinkLayer::Phy::initialize(phyPayloadSizeByte);
+	Config::LinkLayer::initialize(network, address);
 
 	// set these values to be able to calculate on-air frame size and time
 	// at compile time
-	Config::setSpeed(Parameters::dataRate);
-	Config::setAddressWidth(Parameters::addressWidth);
-	Config::setCrc(Parameters::crcBytes);
+	Config::setSpeed(Config::Parameters::dataRate);
+	Config::setAddressWidth(Config::Parameters::addressWidth);
+	Config::setCrc(Config::Parameters::crcBytes);
 	Config::setAutoRetransmitCount(Config::AutoRetransmitCount::Retransmit2);
 	Config::setRfPower(Config::RfPower::Minus6dBm);
 
@@ -100,11 +102,11 @@ xpcc::R2MAC<Nrf24Data, Parameters>::initialize(NetworkAddress network, NodeAddre
 	                << xpcc::endl;
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 void
-xpcc::R2MAC<Nrf24Data, Parameters>::update()
+xpcc::R2MAC<Config>::update()
 {
-	Nrf24Data::update();
+	Config::LinkLayer::update();
 	handlePackets();
 
 	static xpcc::PeriodicTimer rateLimiter(200);
@@ -127,28 +129,28 @@ xpcc::R2MAC<Nrf24Data, Parameters>::update()
 	}
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 void
-xpcc::R2MAC<Nrf24Data, Parameters>::waitUntilReadyToSend()
+xpcc::R2MAC<Config>::waitUntilReadyToSend()
 {
-	while(not Nrf24Data::isReadyToSend()) {
-		Nrf24Data::update();
+	while(not Config::LinkLayer::isReadyToSend()) {
+		Config::LinkLayer::update();
 	}
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::sendPacket(Packet& packet)
+xpcc::R2MAC<Config>::sendPacket(Packet& packet)
 {
 	packet.setType(Packet::Type::Data);
 
-	const auto packetNrfData = reinterpret_cast<Nrf24DataPacket*>(&packet);
-	return dataTXQueue.append(*packetNrfData);
+	const auto frame = reinterpret_cast<typename Config::L2Frame*>(&packet);
+	return dataTXQueue.append(*frame);
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Packet& packet)
+xpcc::R2MAC<Config>::getPacket(Packet& packet)
 {
 	if(dataRXQueue.isEmpty())
 		return false;
@@ -159,9 +161,9 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getPacket(Packet& packet)
 	return true;
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 uint8_t
-xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
+xpcc::R2MAC<Config>::getNeighbourList(NodeList& nodeList)
 {
 	nodeList = memberList;
 	for(size_t i = 0; i < memberCount; i++) {
@@ -175,9 +177,9 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getNeighbourList(NodeList& nodeList)
 	return memberCount;
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 uint8_t
-xpcc::R2MAC<Nrf24Data, Parameters>::getDataSlot(NodeAddress nodeAddress)
+xpcc::R2MAC<Config>::getDataSlot(NodeAddress nodeAddress)
 {
 	for(uint8_t i = 0; i < memberCount; i++) {
 		if (memberList[i] == nodeAddress) {
@@ -188,32 +190,30 @@ xpcc::R2MAC<Nrf24Data, Parameters>::getDataSlot(NodeAddress nodeAddress)
 	return 0;
 }
 
-template<typename Nrf24Data, class Parameters>
+template<typename Config>
 bool
-xpcc::R2MAC<Nrf24Data, Parameters>::inMySlot()
+xpcc::R2MAC<Config>::inMySlot()
 {
 	const xpcc::Timestamp endOwnSlotTimestamp = getStartOfOwnSlot() +
 	        timeDataSlotUs;
 
-	const xpcc::Timestamp now = MicroSecondsClock::now();
+	const xpcc::Timestamp now = Config::L2Clock::now();
 
 	return (getStartOfOwnSlot() < now) and (now < endOwnSlotTimestamp);
 }
 
-template<typename Nrf24Data, class Parameters>
-typename xpcc::R2MAC<Nrf24Data, Parameters>::Packet::Type
-xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
+template<typename Config>
+typename xpcc::R2MAC<Config>::Packet::Type
+xpcc::R2MAC<Config>::handlePackets(void)
 {
-	Nrf24DataPacket packetNrf24Data;
+	if(Config::LinkLayer::getPacket(l2Frame)) {
 
-	if(Nrf24Data::getPacket(packetNrf24Data)) {
-
-		const auto packet = reinterpret_cast<Packet*>(&packetNrf24Data);
+		const auto packet = reinterpret_cast<Packet*>(&l2Frame);
 		const typename Packet::Type packetType = packet->getType();
 
 		// filter packet by its destination address
-		if ((packet->getDestination() != Nrf24Data::getBroadcastAddress()) and
-		    (packet->getDestination() != Nrf24Data::getAddress())) {
+		if ((packet->getDestination() != Config::LinkLayer::getBroadcastAddress()) and
+		    (packet->getDestination() != Config::LinkLayer::getAddress())) {
 
 			R2MAC_LOG_INFO << "Overheard " << Packet::toStr(packetType) << "("
 			               << static_cast<uint8_t>(packetType) << ")"
@@ -228,7 +228,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 				associationQueue.append(packet->getSource());
 			}
 
-			Nrf24Data::Phy::dumpRegisters();
+			Config::LinkLayer::Phy::dumpRegisters();
 
 		} else {
 
@@ -238,7 +238,7 @@ xpcc::R2MAC<Nrf24Data, Parameters>::handlePackets(void)
 			switch(packetType) {
 			case Packet::Type::Beacon: {
 
-				const xpcc::Timestamp packetTimestamp = Nrf24Data::getFeedback().timestamp;
+				const xpcc::Timestamp packetTimestamp = Config::LinkLayer::getFeedback().timestamp;
 				const uint32_t timePassedUs = (packetTimestamp - timeLastBeacon).getTime();
 
 				R2MAC_LOG_INFO << "Received new beacon frame from: 0x"

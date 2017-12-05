@@ -88,6 +88,22 @@ public:
 	{
 		Address	src;
 		Address	dest;
+
+		xpcc_always_inline void
+		setSource(Address addr)
+		{ src = addr; }
+
+		xpcc_always_inline Address
+		getSource()
+		{ return src; }
+
+		xpcc_always_inline void
+		setDestination(Address addr)
+		{ dest = addr; }
+
+		xpcc_always_inline Address
+		getDestination()
+		{ return dest; }
 	};
 
 	/// Data that will be sent over the air
@@ -128,6 +144,8 @@ public:
 	getFrameOverhead()
 	{ return sizeof (Header); }
 
+
+
 	static xpcc_always_inline uint8_t
 	getDynamicPayloadLength()
 	{ return Phy::getPayloadLength() - getFrameOverhead(); }
@@ -137,6 +155,26 @@ public:
 	/* typedef config and physical layer for simplicity */
 	typedef xpcc::Nrf24Config<Nrf24Phy> Config;
 	typedef Nrf24Phy Phy;
+
+	/// On-air frame time in microseconds
+	static constexpr uint16_t
+	frameAirTimeUs(size_t phyPayloadSizeByte,
+	               typename Config::AddressWidth addressWidth,
+	               typename Config::Crc crcBytes,
+	               typename Config::Speed dataRate)
+	{
+		return 1000000UL *								// convert to microseconds
+		        (9 +									// Packet Control Field (9 bits)
+		            8 *									// bits per byte
+		            (1									// Preamble
+		             + Config::toNum(addressWidth)		// address field
+		             + phyPayloadSizeByte				// payload
+		             + Config::toNum(crcBytes))			// CRC checksum bytes
+		         ) / static_cast<uint32_t>(dataRate);	// divide by datarate
+
+		// frameAirTimeUs = frameAirSizeBits / dataRate
+	}
+
 
 	static void
 	initialize(BaseAddress base_address,
